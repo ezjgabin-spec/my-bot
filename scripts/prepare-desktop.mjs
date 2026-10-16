@@ -9,6 +9,8 @@ await rm(stage, { recursive: true, force: true });
 await mkdir(path.join(stage, "app"), { recursive: true });
 await cp(".next/standalone", path.join(stage, "server"), {
   recursive: true,
+  // Copy link targets as normal files so Windows needs no symlink privilege.
+  dereference: true,
   filter: (source) =>
     !path.basename(source).startsWith(".env") &&
     ![".studypredict-data", ".git"].includes(path.basename(source)),
