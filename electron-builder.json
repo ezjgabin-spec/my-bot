@@ -1,0 +1,25 @@
+{
+  "appId": "com.studypredict.ai",
+  "productName": "StudyPredict AI",
+  "directories": { "app": "desktop/staging/app", "output": "release" },
+  "files": ["**/*", "!node_modules{,/**/*}"],
+  "extraResources": [
+    { "from": "desktop/staging", "to": ".", "filter": ["server/**/*"] }
+  ],
+  "asar": true,
+  "npmRebuild": false,
+  "win": {
+    "target": ["nsis", "zip"],
+    "icon": "desktop/staging/app/icon.ico",
+    "signAndEditExecutable": false,
+    "artifactName": "StudyPredict-AI-${version}-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "deleteAppDataOnUninstall": false,
+    "artifactName": "StudyPredict-AI-Setup-${version}.${ext}"
+  }
+}

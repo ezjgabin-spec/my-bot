@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env*
+!.env.example
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+.studypredict-data/
+release/
+desktop/staging/
+desktop/vendor-win/
+/StudyPredict-AI-source.zip
