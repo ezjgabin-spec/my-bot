@@ -13,6 +13,7 @@ export function isCloud() {
 
 export type CloudBindings = {
   DB: D1Database;
+  ANTHROPIC_API_KEY?: string;
 };
 
 export async function cloudBindings(): Promise<CloudBindings> {
@@ -23,4 +24,12 @@ export async function cloudBindings(): Promise<CloudBindings> {
       "Cloudflare D1 database must be configured.",
     );
   return bindings;
+}
+
+export async function anthropicApiKey(): Promise<string | undefined> {
+  if (isCloud()) {
+    const { env } = await getCloudflareContext({ async: true });
+    return (env as unknown as CloudBindings).ANTHROPIC_API_KEY || undefined;
+  }
+  return process.env.ANTHROPIC_API_KEY || undefined;
 }
