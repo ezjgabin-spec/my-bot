@@ -1,0 +1,82 @@
+import { MAX_AI_MATERIAL_BYTES, MAX_MATERIAL_CHARACTERS } from "./material-limits";
+
+// Large documents are interpreted in full, not sampled. Bound each upload to
+// a predictable maximum number of Claude requests and a single-test context.
+export const INTERPRETER_CHUNK_CHARACTERS = 75_000;
+export const MAX_INTERPRETER_SECTIONS = 10;
+export const MAX_INTERPRETER_SUMMARY_BYTES = 100_000;
+
+export type DocumentSection = {
+  number: number;
+  total: number;
+  text: string;
+};
+
+export function splitDocument(text: string): DocumentSection[] {
+  if (!text.trim()) throw new Error("Study material is empty.");
+  if (text.length > MAX_MATERIAL_CHARACTERS)
+    throw new Error("Document exceeds the permitted character limit.");
+
+  const parts: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + INTERPRETER_CHUNK_CHARACTERS, text.length);
+    if (end < text.length) {
+      // Prefer a paragraph or line break near the boundary, preserving the
+      // complete source text even when a section contains no newlines.
+      const line = text.lastIndexOf("\n", end);
+      if (line >= start + INTERPRETER_CHUNK_CHARACTERS * 0.8)
+        end = line + 1;
+      if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1]))
+        end--;
+    }
+    if (end <= start) throw new Error("Could not split the document safely.");
+    parts.push(text.slice(start, end));
+    if (parts.length > MAX_INTERPRETER_SECTIONS)
+      throw new Error(
+        "This document needs too many AI sections. Split it into chapters before uploading.",
+      );
+    start = end;
+  }
+  return parts.map((part, index) => ({
+    number: index + 1,
+    total: parts.length,
+    text: part,
+  }));
+}
+
+export function combineDocumentSummaries(summaries: string[]) {
+  if (summaries.length < 1 || summaries.length > MAX_INTERPRETER_SECTIONS)
+    throw new Error("Invalid document summary count.");
+  const encoder = new TextEncoder();
+  for (const summary of summaries) {
+    if (!summary.trim() || encoder.encode(summary).length > 5_000)
+      throw new Error("Claude returned an empty or oversized section summary.");
+  }
+  const text = summaries
+    .map((summary, index) =>
+      `[Document section ${index + 1} of ${summaries.length}]\n${summary.trim()}`,
+    )
+    .join("\n\n");
+  if (encoder.encode(text).length > MAX_INTERPRETER_SUMMARY_BYTES ||
+      encoder.encode(text).length > MAX_AI_MATERIAL_BYTES)
+    throw new Error("The combined study guide is too long.");
+  return text;
+}
+
+// Usable in tests and offline workflows. Production processes and persists
+// one section per HTTP request so a large PDF can resume after interruption.
+export async function interpretDocument(
+  text: string,
+  summarize: (section: DocumentSection) => Promise<string>,
+) {
+  const sections = splitDocument(text);
+  const summaries: string[] = [];
+  for (let i = 0; i < sections.length; i += 2) {
+    const batch = await Promise.all(
+      sections.slice(i, i + 2).map(summarize),
+    );
+    summaries.push(...batch);
+  }
+  return { text: combineDocumentSummaries(summaries), sectionCount: sections.length };
+}

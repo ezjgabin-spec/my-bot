@@ -13,6 +13,7 @@ import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { api, formatLabel } from "@/lib/client";
 import { MAX_FILE_BYTES, MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
+import { MAX_INTERPRETER_SECTIONS } from "@/lib/material-interpreter";
 import {
   SUBJECTS,
   DIFFICULTIES,
@@ -130,8 +131,25 @@ function CreateTest() {
         setMaterialMode("existing");
       }
       if (!mid) throw new Error("Choose a saved study material.");
+      // Short materials finish immediately; long ones are processed across
+      // requests with progress saved, so a reload can resume where it left off.
+      for (let step = 0; step <= MAX_INTERPRETER_SECTIONS; step++) {
+        if (step === 0)
+          setStage("Checking whether your notes need interpretation…");
+        const progress = await api<{
+          ready: boolean;
+          completed: number;
+          total: number;
+        }>(`/api/materials/${mid}/interpret`, { method: "POST" });
+        if (progress.ready) break;
+        setStage(
+          `Claude summarized section ${progress.completed} of ${progress.total}. Preparing the next section…`,
+        );
+        if (step === MAX_INTERPRETER_SECTIONS)
+          throw new Error("The document interpreter did not finish. Retry to resume.");
+      }
       setStage(
-        "Claude is building your questions and rubrics. This can take a minute or two…",
+        "Claude is interpreting every section of large documents, then building your questions. Longer PDFs may take several minutes…",
       );
       const result = await api<{ testId: string }>("/api/tests/generate", {
         method: "POST",
