@@ -138,6 +138,24 @@ describe("Cloudflare D1 account isolation", () => {
       ).toBe(notes);
     });
   });
+  it("caches the complete interpreter guide privately and reuses it", async () => {
+    const owner = await as("owner", seed);
+    const brother = await as("brother", seed);
+    await as("owner", async () => {
+      await store.cacheLocalMaterialInterpretation(
+        owner.materialId,
+        "[Document section 1 of 2]\\nDefinitions.\\n\\n[Document section 2 of 2]\\nFormulas.",
+        2,
+      );
+      const context = await store.getGenerationContext(owner.examId, owner.materialId);
+      expect(context.interpreted).toContain("section 2 of 2");
+      expect(context.material).toContain("acceleration");
+    });
+    await as("brother", async () => {
+      expect((await store.getGenerationContext(brother.examId, brother.materialId)).interpreted).toBeNull();
+      await expect(store.cacheLocalMaterialInterpretation(owner.materialId, "other", 1)).rejects.toMatchObject({ status: 404 });
+    });
+  });
   it("authorizes deletion and cascades D1 records without affecting other accounts", async () => {
     const owner = await as("owner", seed);
     await as("brother", seed);
