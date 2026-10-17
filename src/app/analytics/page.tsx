@@ -5,6 +5,7 @@ import { Target, ArrowUpRight, Sparkles } from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, Empty, Badge } from "@/components/ui";
 import { PerformanceChart } from "@/components/charts";
+import { StudySignals } from "@/components/study-signals";
 import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 export default function Analytics() {
@@ -71,6 +72,7 @@ export default function Analytics() {
           </Link>
         }
       />
+      <StudySignals />
       <div className="filter-row">
         <label>
           Subject

@@ -1,7 +1,8 @@
 "use client";
 import {
   ResponsiveContainer,
-  LineChart,
+  ComposedChart,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -9,6 +10,8 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { useId } from "react";
+import { useMotion } from "./workspace";
 export function PerformanceChart({
   data,
   actual = false,
@@ -21,6 +24,8 @@ export function PerformanceChart({
   }[];
   actual?: boolean;
 }) {
+  const animate = useMotion();
+  const gradientId = useId().replaceAll(":", "");
   return (
     <div
       className="chart"
@@ -32,10 +37,16 @@ export function PerformanceChart({
       }
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
+        <ComposedChart
           data={data}
           margin={{ top: 15, right: 18, left: -22, bottom: 5 }}
         >
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#42e8df" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="#42e8df" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid
             stroke="#263049"
             strokeDasharray="4 6"
@@ -69,6 +80,7 @@ export function PerformanceChart({
           {actual ? (
             <>
               <Line
+                isAnimationActive={animate}
                 name="Predicted grade"
                 type="monotone"
                 dataKey="predicted"
@@ -77,6 +89,7 @@ export function PerformanceChart({
                 dot={{ r: 4 }}
               />
               <Line
+                isAnimationActive={animate}
                 name="Actual grade"
                 type="monotone"
                 dataKey="actual"
@@ -86,16 +99,19 @@ export function PerformanceChart({
               />
             </>
           ) : (
-            <Line
+            <Area
+              isAnimationActive={animate}
+              animationDuration={1100}
               name="Practice score"
               type="monotone"
               dataKey="practice"
-              stroke="#9a8bff"
+              stroke="#61e6e0"
+              fill={`url(#${gradientId})`}
               strokeWidth={3}
-              dot={{ r: 4, fill: "#9a8bff" }}
+              dot={{ r: 4, fill: "#61e6e0", stroke: "#07131d", strokeWidth: 2 }}
             />
           )}
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );

@@ -14,6 +14,70 @@ const json = (data: unknown) => ({
   contentType: "application/json",
   body: JSON.stringify(data),
 });
+test("dashboard uses actual study activity and respects the motion preference", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const attempt = view();
+  await page.route("**/api/state", (r) =>
+    r.fulfill(
+      json({
+        configured: true,
+        aiReady: true,
+        state: {
+          ...empty,
+          subjects: [{ id: "s", name: "Precalculus" }],
+          exams: [attempt.exam],
+          tests: [attempt.test],
+          attempts: [
+            {
+              ...attempt.attempt,
+              status: "completed",
+              score: 85,
+              completed_at: new Date().toISOString(),
+              time_spent_seconds: 600,
+            },
+          ],
+        },
+      }),
+    ),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByRole("meter", { name: "Precalculus average practice score" }),
+  ).toHaveAttribute("aria-valuenow", "85");
+  await expect(page.locator(".activity-map .level-1")).toHaveCount(1);
+  await expect(page.locator(".signal-strip")).toContainText(
+    "10 minutes practiced",
+  );
+  await page.getByRole("button", { name: "Ambient animations" }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute(
+    "data-motion",
+    "off",
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Ambient animations" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  expect(
+    await page
+      .locator(".ring-a")
+      .evaluate((el) => getComputedStyle(el).animationName),
+  ).toBe("none");
+});
+test("system reduced motion stops ambient animation", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(page.locator(".app-shell")).toHaveAttribute(
+    "data-motion",
+    "off",
+  );
+  expect(
+    await page
+      .locator(".ring-a")
+      .evaluate((el) => getComputedStyle(el).animationName),
+  ).toBe("none");
+});
 // Browser fixtures exercise UI behavior only; they are never used by the application.
 const qid = "11111111-1111-4111-8111-111111111111",
   aid = "22222222-2222-4222-8222-222222222222",

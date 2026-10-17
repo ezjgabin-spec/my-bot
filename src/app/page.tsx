@@ -15,6 +15,7 @@ import {
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, Empty, Badge } from "@/components/ui";
 import { PerformanceChart } from "@/components/charts";
+import { ForecastOrbit, StudySignals } from "@/components/study-signals";
 import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 export default function Dashboard() {
@@ -82,9 +83,9 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        eyebrow="YOUR LEARNING, IN FOCUS"
+        eyebrow="YOUR PERSONAL LEARNING OBSERVATORY"
         title="Make your next exam your best."
-        description="A little more practice. A lot more clarity."
+        description="Your progress, patterns, and next breakthrough. All in view."
         action={
           <Link href="/create" className="button">
             <Plus size={18} />
@@ -95,12 +96,12 @@ export default function Dashboard() {
       <section className="hero-card">
         <div className="hero-copy">
           <Badge tone="purple">
-            <Sparkles size={13} /> BUILT AROUND YOU
+            <Sparkles size={13} /> YOUR NEXT BREAKTHROUGH
           </Badge>
           <h2>
-            Less guessing.
+            See the patterns.
             <br />
-            <span>More knowing.</span>
+            <span>Shape your future.</span>
           </h2>
           <p>
             Practice from your own notes, find what needs work, and see an
@@ -113,34 +114,7 @@ export default function Dashboard() {
             Your materials. Your pace. Your progress.
           </span>
         </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="orbit orbit-three" />
-          <span className="star star-one">✦</span>
-          <span className="star star-two">✦</span>
-          <div className="art-card art-back">
-            <span className="art-icon">
-              <ClipboardCheck size={22} />
-            </span>
-            <span className="art-line" />
-            <span className="art-line short" />
-            <div className="art-bars">
-              {[35, 50, 45, 70, 60, 82, 95].map((h, i) => (
-                <i key={i} style={{ height: `${h}%` }} />
-              ))}
-            </div>
-          </div>
-          <div className="art-chip">
-            <span>
-              <Target size={21} />
-            </span>
-            <div>
-              Practice with purpose<strong>Progress you can see</strong>
-            </div>
-            <Sparkles size={16} />
-          </div>
-        </div>
+        <ForecastOrbit />
       </section>
       <section className="stats-grid" aria-label="Study statistics">
         {stats.map(({ label, value, detail, icon: Icon, tone }) => (
@@ -156,6 +130,7 @@ export default function Dashboard() {
           </article>
         ))}
       </section>
+      <StudySignals />
       <div className="dashboard-grid">
         <section className="panel">
           <div className="panel-heading">

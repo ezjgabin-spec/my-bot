@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./future.css";
 :root {
   --bg: #0b1020;
   --panel: #121a2b;
