@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
+import { makePdf } from "./pdf-fixture.mjs";
 
 const { privateKey, publicKey } = await generateKeyPair("RS256");
 const publicJwk = {
@@ -21,7 +22,6 @@ const runtime = new Miniflare(
     compatibilityDate: "2026-10-17",
     compatibilityFlags: ["nodejs_compat"],
     d1Databases: ["DB"],
-    r2Buckets: ["MATERIALS"],
     bindings: {
       STUDYPREDICT_CLOUD: "1",
       APP_ORIGIN: "http://127.0.0.1:8789",
@@ -165,6 +165,22 @@ try {
     );
     assert.ok(material.characters > 40);
   }
+  const largeUpload = await runtime.dispatchFetch(
+    "http://127.0.0.1:8789/api/materials",
+    {
+      method: "POST",
+      headers: {
+        Origin: "http://127.0.0.1:8789",
+        "cf-access-jwt-assertion": owner,
+        "Content-Type": "application/octet-stream",
+        "X-Filename": "long-study-guide.pdf",
+      },
+      body: makePdf({ pages: 150, paddingBytes: 4 * 1024 * 1024 }),
+    },
+  );
+  const largeMaterial = await largeUpload.json();
+  assert.equal(largeUpload.status, 201, JSON.stringify(largeMaterial));
+  material = largeMaterial;
   const { testId } = await api(
     owner,
     "/api/tests/generate",
@@ -208,8 +224,23 @@ try {
   await api(owner, `/api/exams/${exam.id}/grade`, { grade: 92 }, "PUT");
   assert.equal((await api(owner, "/api/state")).state.grades[0].grade, 92);
   assert.deepEqual((await api(brother, "/api/state")).state.grades, []);
+  await api(brother, `/api/tests/${testId}`, null, "DELETE", 404);
+  await api(owner, `/api/tests/${testId}`, null, "DELETE");
+  let saved = (await api(owner, "/api/state")).state;
+  assert.deepEqual(saved.tests, []);
+  assert.deepEqual(saved.attempts, []);
+  assert.deepEqual(saved.answers, []);
+  assert.deepEqual(saved.predictions, []);
+  assert.equal(saved.grades.length, 1);
+  await api(owner, `/api/exams/${exam.id}`, null, "DELETE");
+  saved = (await api(owner, "/api/state")).state;
+  assert.deepEqual(saved.exams, []);
+  assert.deepEqual(saved.grades, []);
+  await api(owner, `/api/subjects/${saved.subjects[0].id}`, null, "DELETE");
+  assert.deepEqual((await api(owner, "/api/state")).state.subjects, []);
+  assert.equal((await api(owner, "/api/materials")).materials.length, 3);
   console.log(
-    "Cloudflare Worker passed: verified sessions, PDF/DOCX uploads, generation, autosave, grading, predictions, and separate accounts. External AI was simulated; no paid API calls made.",
+    "Cloudflare Worker passed: large PDF and DOCX uploads without R2, generation, grading, predictions, private accounts, and test/exam/subject deletion. External AI was simulated; no paid API calls made.",
   );
 } finally {
   await runtime.dispose();

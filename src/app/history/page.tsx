@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ArrowUpRight, Play } from "lucide-react";
+import { Plus, ArrowUpRight, Play, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, Empty, Badge, ErrorMessage } from "@/components/ui";
 import { api, dateLabel, percent, formatLabel } from "@/lib/client";
@@ -11,7 +11,39 @@ export default function History() {
   const [filter, setFilter] = useState("all");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [message, setMessage] = useState("");
   const router = useRouter();
+  async function remove(
+    kind: "subjects" | "exams" | "tests",
+    id: string,
+    name: string,
+  ) {
+    const description =
+      kind === "subjects"
+        ? "This removes the subject, its school exams, practice tests, attempts, grades, and predictions."
+        : kind === "exams"
+          ? "This removes the school exam, its practice tests, attempts, actual grade, and predictions."
+          : "This removes this practice test, its attempts, answers, and predictions. The school exam and actual grade stay.";
+    if (
+      !window.confirm(
+        `Delete ${name}?\n\n${description}\nSaved study materials stay in your library. This cannot be undone in the app.`,
+      )
+    )
+      return;
+    setBusy(id);
+    setError("");
+    setMessage("");
+    try {
+      await api(`/api/${kind}/${id}`, { method: "DELETE" });
+      if (kind === "subjects") setFilter("all");
+      await refresh();
+      setMessage(`${name} deleted.`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
   async function start(id: string) {
     setBusy(id);
     setError("");
@@ -56,8 +88,29 @@ export default function History() {
           </select>
         </label>
         <span className="muted">{exams.length} school exams</span>
+        {filter !== "all" && (
+          <button
+            className="button secondary small"
+            disabled={!!busy}
+            onClick={() =>
+              void remove(
+                "subjects",
+                filter,
+                state.subjects.find((s) => s.id === filter)?.name ?? "subject",
+              )
+            }
+          >
+            <Trash2 size={14} />
+            Delete subject
+          </button>
+        )}
       </div>
       <ErrorMessage message={error} />
+      {message && (
+        <p role="status" className="success-text">
+          {message}
+        </p>
+      )}
       {!exams.length ? (
         <section className="panel">
           <Empty
@@ -87,15 +140,26 @@ export default function History() {
                     </h2>
                     <p>{dateLabel(exam.exam_date)}</p>
                   </div>
-                  <Link
-                    className="button secondary small"
-                    href={`/exams/${exam.id}`}
-                  >
-                    {grade
-                      ? `Actual: ${percent(grade.grade)}`
-                      : "Enter actual grade"}
-                    <ArrowUpRight size={16} />
-                  </Link>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Link
+                      className="button secondary small"
+                      href={`/exams/${exam.id}`}
+                    >
+                      {grade
+                        ? `Actual: ${percent(grade.grade)}`
+                        : "Enter actual grade"}
+                      <ArrowUpRight size={16} />
+                    </Link>
+                    <button
+                      className="button secondary small"
+                      disabled={!!busy}
+                      aria-label={`Delete exam ${exam.name}`}
+                      onClick={() => void remove("exams", exam.id, exam.name)}
+                    >
+                      <Trash2 size={14} />
+                      Delete exam
+                    </button>
+                  </div>
                 </div>
                 {!tests.length && (
                   <p className="helper">
@@ -124,20 +188,39 @@ export default function History() {
                             {dateLabel(test.created_at)}
                           </p>
                         </div>
-                        {!grade && (
+                        <div
+                          style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                        >
+                          {!grade && (
+                            <button
+                              disabled={!!busy}
+                              className="button secondary small"
+                              onClick={() => void start(test.id)}
+                            >
+                              <Play size={14} />
+                              {busy === test.id
+                                ? "Opening…"
+                                : attempts.some((a) => a.status !== "completed")
+                                  ? "Resume"
+                                  : "Practice again"}
+                            </button>
+                          )}
                           <button
-                            disabled={!!busy}
                             className="button secondary small"
-                            onClick={() => void start(test.id)}
+                            disabled={!!busy}
+                            aria-label={`Delete practice test: ${test.question_count} questions, ${test.difficulty}, ${exam.name}`}
+                            onClick={() =>
+                              void remove(
+                                "tests",
+                                test.id,
+                                `${test.question_count}-question practice test`,
+                              )
+                            }
                           >
-                            <Play size={14} />
-                            {busy === test.id
-                              ? "Opening…"
-                              : attempts.some((a) => a.status !== "completed")
-                                ? "Resume"
-                                : "Practice again"}
+                            <Trash2 size={14} />
+                            Delete test
                           </button>
-                        )}
+                        </div>
                       </div>
                       {attempts.map((a, i) => (
                         <Link

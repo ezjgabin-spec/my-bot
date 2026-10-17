@@ -12,6 +12,7 @@ import {
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { api, formatLabel } from "@/lib/client";
+import { MAX_FILE_BYTES, MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
 import {
   SUBJECTS,
   DIFFICULTIES,
@@ -32,9 +33,7 @@ function CreateTest() {
   const search = useSearchParams();
   const { state, connection, aiReady, refresh } = useWorkspace();
   const [examId, setExamId] = useState(search.get("exam") ?? "new");
-  const [subject, setSubject] = useState(
-search.get("subject") ?? "Math",
-  );
+  const [subject, setSubject] = useState(search.get("subject") ?? "Math");
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -98,27 +97,30 @@ search.get("subject") ?? "Math",
       let mid = materialId;
       if (!mid || materialMode !== "existing") {
         setStage("Reading your study material…");
-        let payload;
+        let upload: RequestInit;
         if (materialMode === "file") {
           if (!file) throw new Error("Choose a study guide first.");
-          if (file.size > 3 * 1024 * 1024)
-            throw new Error("Files must be under 3 MB.");
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result).split(",")[1]);
-            reader.onerror = () =>
-              reject(new Error("Could not read the file."));
-            reader.readAsDataURL(file);
-          });
-          payload = { filename: file.name, base64 };
+          if (file.size > MAX_FILE_BYTES)
+            throw new Error("Files must be up to 20 MB.");
+          upload = {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "X-Filename": encodeURIComponent(file.name),
+            },
+            body: file,
+          };
         } else
-          payload = {
-            filename: `${selectedSubject || "Study"} notes.txt`,
-            text: notes,
+          upload = {
+            method: "POST",
+            body: JSON.stringify({
+              filename: `${selectedSubject || "Study"} notes.txt`,
+              text: notes,
+            }),
           };
         const result = await api<{ id: string; filename: string }>(
           "/api/materials",
-          { method: "POST", body: JSON.stringify(payload) },
+          upload,
         );
         mid = result.id;
         setMaterialId(mid);
@@ -256,7 +258,7 @@ search.get("subject") ?? "Math",
                 <textarea
                   required
                   minLength={40}
-                  maxLength={100000}
+                  maxLength={MAX_MATERIAL_CHARACTERS}
                   rows={9}
                   placeholder="Paste your study guide, class notes, vocabulary, or review questions here…"
                   value={notes}
@@ -272,7 +274,8 @@ search.get("subject") ?? "Math",
               <label className="upload-zone">
                 <Upload size={28} />
                 <strong>{file ? file.name : "Choose your study guide"}</strong>
-                <span>PDF, Word (.docx), or TXT · up to 3 MB</span>
+                <span>PDF, Word (.docx), or TXT · up to 20 MB</span>
+                <span>PDFs: up to 500 pages · 500,000 characters of text</span>
                 <input
                   type="file"
                   required
@@ -450,6 +453,11 @@ search.get("subject") ?? "Math",
             Your material is stored privately and sent to Claude for generation
             and grading.
           </div>
+          <p className="helper">
+            Long documents are sampled across sections for each test. Add focus
+            topics to prioritize the chapters you want to practice. Scanned PDFs
+            still need selectable text or OCR first.
+          </p>
         </aside>
       </form>
     </>

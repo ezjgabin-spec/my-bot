@@ -6,6 +6,10 @@ StudyPredict supports a Windows desktop app and a Cloudflare-hosted edition for 
 
 The desktop edition described below stores study data on your PC and uses your own Anthropic API key. It needs no account login, hosting, Supabase project, or database setup.
 
+Uploads support PDF, DOCX, and TXT files up to **20 MB**, PDFs up to **500 pages**, and extracted notes up to **500,000 characters**. Long documents are sampled across sections for each AI request, with focus-topic matches prioritized; the original extracted notes are retained. Scanned PDFs require OCR first. Complex PDFs can still hit hosting CPU or memory limits.
+
+In **Tests & history**, use **Delete test** or **Delete exam**, or select a subject and choose **Delete subject**. A confirmation describes the related attempts, grades, and predictions that will be removed. Saved study materials remain available for reuse. Deletes affect only the signed-in account and cannot be undone in the app.
+
 ## Run it on Windows
 
 1. Download the Windows x64 ZIP and choose **Extract All**. Keep the extracted folder together.
@@ -25,7 +29,7 @@ The PC must be awake and signed in for the app to run. It does not prevent sleep
 
 ## Practice and prediction workflow
 
-- Create a school exam with a subject, name, and optional date. Paste notes, upload PDF/DOCX/TXT, or reuse saved material. Legacy DOC files must first be converted; scanned PDFs need OCR. Upload limits are 3 MB per file, 100 PDF pages, 100,000 extracted characters, and 20 MB expanded DOCX content.
+- Create a school exam with a subject, name, and optional date. Paste notes, upload PDF/DOCX/TXT, or reuse saved material. Legacy DOC files must first be converted; scanned PDFs need OCR. Upload limits are 20 MB per file, 500 PDF pages, 500,000 extracted characters, and 20 MB expanded DOCX content.
 - Choose question count, difficulty, format, and an optional timer. Generated tests are validated and saved before an attempt starts.
 - Answers and review flags autosave. Check the save indicator before leaving; failed saves have a retry action. Timers continue while the window is closed or the app is stopped. Reopening an expired attempt submits the last saved answers. Answer keys and rubrics remain hidden until grading finishes.
 - Multiple choice uses deterministic grading. Claude grades written/math answers against rubrics, including partial credit. Blank answers score zero. AI grading can make mistakes; review its feedback.

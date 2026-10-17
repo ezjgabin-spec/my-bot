@@ -76,6 +76,61 @@ async function completed() {
   return id;
 }
 describe("local persistent practice workflow", () => {
+  it("deletes a test and results while keeping its exam, grade, and library", async () => {
+    const id = await completed();
+    await store.recordLocalGrade(exam, 85);
+    await store.deleteLocalTest(testId);
+    const data = await store.readLocalData();
+    for (const collection of [
+      data.tests,
+      data.questions,
+      data.attempts,
+      data.answers,
+      data.predictions,
+    ])
+      expect(collection).toHaveLength(0);
+    expect(data.exams).toHaveLength(1);
+    expect(data.grades).toHaveLength(1);
+    expect(data.materials).toHaveLength(1);
+    await expect(store.localAttemptView(id)).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+  it("cascades subject deletion while preserving another subject", async () => {
+    await completed();
+    await store.recordLocalGrade(exam, 90);
+    const other = await store.createLocalExam({
+      subject: "History",
+      name: "Rome",
+    });
+    const subject = (await store.localState()).exams.find(
+      (e) => e.id === exam,
+    )!.subject_id;
+    await store.deleteLocalSubject(subject);
+    const data = await store.readLocalData();
+    expect(data.subjects.map((s) => s.name)).toEqual(["History"]);
+    expect(data.exams.map((e) => e.id)).toEqual([other.id]);
+    for (const collection of [
+      data.tests,
+      data.questions,
+      data.attempts,
+      data.answers,
+      data.predictions,
+      data.grades,
+    ])
+      expect(collection).toHaveLength(0);
+    expect(data.materials).toHaveLength(1);
+  });
+  it("never resurrects a deleted test when pending grading finishes", async () => {
+    const id = await store.startLocalAttempt(testId);
+    const attempt = await store.claimLocalSubmission(id, "pending");
+    const results = await gradeWritten(questions, attempt.responses);
+    await store.deleteLocalTest(testId);
+    await expect(
+      store.finishLocalSubmission(id, "pending", results, prediction),
+    ).rejects.toMatchObject({ status: 404 });
+    expect((await store.localState()).predictions).toHaveLength(0);
+  });
   it("serializes concurrent writes across module reloads without losing exams", async () => {
     vi.resetModules();
     const second = await import("../src/lib/local-store");

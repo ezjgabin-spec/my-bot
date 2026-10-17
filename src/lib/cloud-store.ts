@@ -2,6 +2,7 @@ import "server-only";
 import { cloudBindings } from "./cloud";
 import { requireUser, AppError } from "./server";
 import { emptyData, type LocalData, type StudyMaterial } from "./local-store";
+import { MAX_MATERIAL_CHARACTERS } from "./material-limits";
 
 type Collection = Exclude<keyof LocalData, "version">;
 type Row = { collection: Collection; item_id: string; value: string };
@@ -99,8 +100,15 @@ export async function storeCloudMaterial(
   material: Omit<StudyMaterial, "created_at">,
   _original?: Uint8Array,
 ) {
-  if (new TextEncoder().encode(material.extracted_text).byteLength > 100_000)
-    throw new AppError("Study notes are too long for beta storage. Paste a shorter selection.", 413);
+  void _original;
+  if (
+    material.extracted_text.length > MAX_MATERIAL_CHARACTERS ||
+    new TextEncoder().encode(JSON.stringify(material)).byteLength > 1_800_000
+  )
+    throw new AppError(
+      "Study notes exceed the 500,000-character storage limit. Split them into chapters.",
+      413,
+    );
   await updateCloudData((data) => {
     data.materials.push({
       ...material,
@@ -114,7 +122,10 @@ export async function cloudMaterialText(materialId: string) {
   const material = data.materials.find((item) => item.id === materialId);
   if (!material) throw new AppError("Study material could not be found.", 404);
   if (!material.extracted_text)
-    throw new AppError("This material was stored before D1-only mode and its text is unavailable. Please upload the notes again.", 409);
+    throw new AppError(
+      "This material was stored before D1-only mode and its text is unavailable. Please upload the notes again.",
+      409,
+    );
   return material.extracted_text;
 }
 

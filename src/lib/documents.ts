@@ -3,7 +3,12 @@ import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import yauzl from "yauzl";
 import { AppError } from "./server";
-export const MAX_FILE_BYTES = 3 * 1024 * 1024;
+import {
+  MAX_FILE_BYTES,
+  MAX_PDF_PAGES,
+  MAX_MATERIAL_CHARACTERS,
+} from "./material-limits";
+export { MAX_FILE_BYTES } from "./material-limits";
 async function inspectDocx(buffer: Buffer) {
   await new Promise<void>((resolve, reject) => {
     yauzl.fromBuffer(buffer, { lazyEntries: true }, (error, zip) => {
@@ -53,20 +58,22 @@ async function inspectDocx(buffer: Buffer) {
   });
 }
 export function validateText(text: string) {
-  const cleaned = text.replace(/\u0000/g, "").trim();
+  const cleaned = text
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
+    .trim();
   if (cleaned.length < 40)
     throw new AppError(
       "Not enough readable text was found. Scanned PDFs need OCR first; try pasting your notes or uploading a text-based file.",
     );
-  if (cleaned.length > 100000)
+  if (cleaned.length > MAX_MATERIAL_CHARACTERS)
     throw new AppError(
-      "The document contains more than 100,000 characters. Upload a shorter section of your study guide.",
+      "The document contains more than 500,000 characters. Split it into chapters and upload the section you want to study.",
     );
   return cleaned;
 }
 export async function extractDocument(filename: string, buffer: Buffer) {
   if (!buffer.length || buffer.length > MAX_FILE_BYTES)
-    throw new AppError("Choose a nonempty file under 3 MB.");
+    throw new AppError("Choose a nonempty file up to 20 MB.");
   const extension = filename.toLowerCase().split(".").pop();
   try {
     if (extension === "txt") {
@@ -88,8 +95,8 @@ export async function extractDocument(filename: string, buffer: Buffer) {
       const parser = new PDFParse({ data: new Uint8Array(buffer) });
       try {
         const info = await parser.getInfo();
-        if (info.total > 100)
-          throw new AppError("Please upload at most 100 PDF pages at a time.");
+        if (info.total > MAX_PDF_PAGES)
+          throw new AppError("Please upload at most 500 PDF pages at a time.");
         return {
           text: validateText((await parser.getText()).text),
           mime: "application/pdf",

@@ -50,6 +50,18 @@ export async function readJson(
 ): Promise<unknown> {
   if (!request.headers.get("content-type")?.includes("application/json"))
     throw new AppError("Expected a JSON request.");
+  const buffer = await readBytes(request, maxBytes);
+  try {
+    return JSON.parse(buffer.toString("utf8"));
+  } catch {
+    throw new AppError("Invalid JSON request.");
+  }
+}
+
+export async function readBytes(
+  request: Request,
+  maxBytes: number,
+): Promise<Buffer> {
   const reader = request.body?.getReader();
   if (!reader) throw new AppError("Request body is required.");
   const chunks: Uint8Array[] = [];
@@ -64,11 +76,7 @@ export async function readJson(
     }
     chunks.push(value);
   }
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  } catch {
-    throw new AppError("Invalid JSON request.");
-  }
+  return Buffer.concat(chunks);
 }
 
 export function apiError(error: unknown) {

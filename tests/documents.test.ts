@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
+import { makePdf } from "./pdf-fixture.mjs";
+import { MAX_MATERIAL_CHARACTERS } from "../src/lib/material-limits";
 import {
   extractDocument,
   validateText,
@@ -8,6 +10,18 @@ import {
 const text =
   "Function composition means applying one function to the output of another function. Inverses undo a function.";
 describe("document extraction", () => {
+  it("reads beyond the old 3 MB and 100-page caps, including the last page", async () => {
+    const result = await extractDocument(
+      "long.pdf",
+      makePdf({ pages: 150, paddingBytes: 4 * 1024 * 1024 }),
+    );
+    expect(result.text).toContain("Page 150.");
+  });
+  it("rejects more than 500 pages before extracting text", async () => {
+    await expect(
+      extractDocument("too-many.pdf", makePdf({ pages: 501 })),
+    ).rejects.toThrow(/500 PDF pages/);
+  });
   it("extracts text from a real PDF fixture", async () => {
     const result = await extractDocument(
       "guide.pdf",
@@ -34,7 +48,7 @@ describe("document extraction", () => {
     );
     await expect(
       extractDocument("big.txt", Buffer.alloc(MAX_FILE_BYTES + 1)),
-    ).rejects.toThrow(/3 MB/);
+    ).rejects.toThrow(/20 MB/);
   });
   it("rejects disguised PDFs", async () => {
     await expect(
@@ -60,6 +74,11 @@ describe("document extraction", () => {
     expect(() => validateText("  ")).toThrow(/OCR/);
   });
   it("enforces the extracted text limit", () => {
-    expect(() => validateText("a".repeat(100001))).toThrow(/100,000/);
+    expect(validateText("a".repeat(MAX_MATERIAL_CHARACTERS))).toHaveLength(
+      MAX_MATERIAL_CHARACTERS,
+    );
+    expect(() => validateText("a".repeat(MAX_MATERIAL_CHARACTERS + 1))).toThrow(
+      /500,000/,
+    );
   });
 });

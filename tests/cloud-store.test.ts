@@ -17,6 +17,9 @@ import { POST as submit } from "../src/app/api/attempts/[id]/submit/route";
 import { GET as viewAttempt } from "../src/app/api/attempts/[id]/route";
 import { POST as upload } from "../src/app/api/materials/route";
 import { GET as stateRoute } from "../src/app/api/state/route";
+import { DELETE as deleteSubject } from "../src/app/api/subjects/[id]/route";
+import { DELETE as deleteTest } from "../src/app/api/tests/[id]/route";
+import { DELETE as deleteExam } from "../src/app/api/exams/[id]/route";
 
 const context = new AsyncLocalStorage<string>();
 let platform: Awaited<ReturnType<typeof getPlatformProxy<CloudBindings>>>;
@@ -116,6 +119,67 @@ async function seed() {
   };
 }
 describe("Cloudflare D1 account isolation", () => {
+  it("stores long Unicode notes in D1 without R2", async () => {
+    await as("owner", async () => {
+      const notes = "学习资料。".repeat(70000);
+      const materialId = crypto.randomUUID();
+      await store.saveLocalMaterial({
+        id: materialId,
+        filename: "long.txt",
+        mime_type: "text/plain",
+        extracted_text: notes,
+      });
+      const exam = await store.createLocalExam({
+        subject: "Language",
+        name: "Reading",
+      });
+      expect(
+        (await store.getGenerationContext(exam.id, materialId)).material,
+      ).toBe(notes);
+    });
+  });
+  it("authorizes deletion and cascades D1 records without affecting other accounts", async () => {
+    const owner = await as("owner", seed);
+    await as("brother", seed);
+    const subjectId = (await as("owner", store.localState)).subjects[0].id;
+    const request = (kind: string, id: string, requestOrigin = origin.Origin) =>
+      new Request(`https://study.example.com/api/${kind}/${id}`, {
+        method: "DELETE",
+        headers: { Origin: requestOrigin },
+      });
+    const params = (id: string) => ({ params: Promise.resolve({ id }) });
+    await as("brother", async () => {
+      expect(
+        (await deleteTest(request("tests", owner.testId), params(owner.testId)))
+          .status,
+      ).toBe(404);
+      expect(
+        (await deleteExam(request("exams", owner.examId), params(owner.examId)))
+          .status,
+      ).toBe(404);
+      expect(
+        (await deleteSubject(request("subjects", subjectId), params(subjectId)))
+          .status,
+      ).toBe(404);
+    });
+    await as("owner", async () => {
+      expect(
+        (
+          await deleteSubject(
+            request("subjects", subjectId, "https://evil.example"),
+            params(subjectId),
+          )
+        ).status,
+      ).toBe(403);
+      expect(
+        (await deleteSubject(request("subjects", subjectId), params(subjectId)))
+          .status,
+      ).toBe(200);
+      expect((await store.localState()).subjects).toHaveLength(0);
+      expect((await store.readLocalData()).questions).toHaveLength(0);
+    });
+    expect((await as("brother", store.localState)).tests).toHaveLength(1);
+  });
   it("rejects unsigned requests before accessing stored data", async () => {
     expect((await stateRoute()).status).toBe(401);
     await expect(store.localState()).rejects.toMatchObject({ status: 401 });
@@ -176,7 +240,9 @@ describe("Cloudflare D1 account isolation", () => {
       const saved = await store.readLocalData();
       expect(saved.materials).toHaveLength(1);
       expect(saved.materials[0].id).toBe(body.id);
-      expect(saved.materials[0].extracted_text).toContain("Newton's second law");
+      expect(saved.materials[0].extracted_text).toContain(
+        "Newton's second law",
+      );
       expect(await store.listLocalMaterials()).toHaveLength(1);
     });
     expect(await as("brother", store.listLocalMaterials)).toHaveLength(0);

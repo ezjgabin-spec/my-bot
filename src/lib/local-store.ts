@@ -494,3 +494,55 @@ export async function localQuestionsForTest(testId: string) {
       (question as Question & { test_id?: string }).test_id === testId,
   );
 }
+
+function removeTests(data: LocalData, testIds: Set<string>) {
+  const attempts = new Set(
+    data.attempts.filter((a) => testIds.has(a.test_id)).map((a) => a.id),
+  );
+  data.tests = data.tests.filter((t) => !testIds.has(t.id));
+  data.questions = data.questions.filter((q) => !testIds.has(q.test_id));
+  data.attempts = data.attempts.filter((a) => !attempts.has(a.id));
+  data.answers = data.answers.filter((a) => !attempts.has(a.attempt_id ?? ""));
+  data.predictions = data.predictions.filter(
+    (p) => !attempts.has(p.attempt_id),
+  );
+}
+
+function removeExams(data: LocalData, examIds: Set<string>) {
+  removeTests(
+    data,
+    new Set(data.tests.filter((t) => examIds.has(t.exam_id)).map((t) => t.id)),
+  );
+  data.exams = data.exams.filter((e) => !examIds.has(e.id));
+  data.grades = data.grades.filter((g) => !examIds.has(g.exam_id));
+  data.predictions = data.predictions.filter((p) => !examIds.has(p.exam_id));
+}
+
+export async function deleteLocalTest(id: string) {
+  return updateLocalData((data) => {
+    if (!data.tests.some((t) => t.id === id))
+      throw new AppError("Test not found.", 404);
+    removeTests(data, new Set([id]));
+  });
+}
+
+export async function deleteLocalExam(id: string) {
+  return updateLocalData((data) => {
+    if (!data.exams.some((e) => e.id === id))
+      throw new AppError("Exam not found.", 404);
+    removeExams(data, new Set([id]));
+  });
+}
+
+export async function deleteLocalSubject(id: string) {
+  return updateLocalData((data) => {
+    if (!data.subjects.some((s) => s.id === id))
+      throw new AppError("Subject not found.", 404);
+    removeExams(
+      data,
+      new Set(data.exams.filter((e) => e.subject_id === id).map((e) => e.id)),
+    );
+    data.subjects = data.subjects.filter((s) => s.id !== id);
+    // Saved materials may be reused by other subjects; keep the library intact.
+  });
+}
