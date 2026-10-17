@@ -2,8 +2,8 @@ import { MAX_AI_MATERIAL_BYTES, MAX_MATERIAL_CHARACTERS } from "./material-limit
 
 // Large documents are interpreted in full, not sampled. Bound each upload to
 // a predictable maximum number of Claude requests and a single-test context.
-export const INTERPRETER_CHUNK_CHARACTERS = 30_000;
-export const MAX_INTERPRETER_SECTIONS = 24;
+export const INTERPRETER_CHUNK_CHARACTERS = 75_000;
+export const MAX_INTERPRETER_SECTIONS = 10;
 export const MAX_INTERPRETER_SUMMARY_BYTES = 100_000;
 
 export type DocumentSection = {
@@ -45,31 +45,38 @@ export function splitDocument(text: string): DocumentSection[] {
   }));
 }
 
+export function combineDocumentSummaries(summaries: string[]) {
+  if (summaries.length < 1 || summaries.length > MAX_INTERPRETER_SECTIONS)
+    throw new Error("Invalid document summary count.");
+  const encoder = new TextEncoder();
+  for (const summary of summaries) {
+    if (!summary.trim() || encoder.encode(summary).length > 5_000)
+      throw new Error("Claude returned an empty or oversized section summary.");
+  }
+  const text = summaries
+    .map((summary, index) =>
+      `[Document section ${index + 1} of ${summaries.length}]\n${summary.trim()}`,
+    )
+    .join("\n\n");
+  if (encoder.encode(text).length > MAX_INTERPRETER_SUMMARY_BYTES ||
+      encoder.encode(text).length > MAX_AI_MATERIAL_BYTES)
+    throw new Error("The combined study guide is too long.");
+  return text;
+}
+
+// Usable in tests and offline workflows. Production processes and persists
+// one section per HTTP request so a large PDF can resume after interruption.
 export async function interpretDocument(
   text: string,
   summarize: (section: DocumentSection) => Promise<string>,
 ) {
   const sections = splitDocument(text);
   const summaries: string[] = [];
-  // Keep concurrency small to limit rate-limit spikes and provider spend.
   for (let i = 0; i < sections.length; i += 2) {
     const batch = await Promise.all(
-      sections.slice(i, i + 2).map(async (section) => {
-        const summary = (await summarize(section)).trim();
-        if (!summary || new TextEncoder().encode(summary).length > 5_000)
-          throw new Error(
-            "Claude returned an empty or oversized section summary. Please retry.",
-          );
-        return `[Document section ${section.number} of ${section.total}]\n${summary}`;
-      }),
+      sections.slice(i, i + 2).map(summarize),
     );
     summaries.push(...batch);
   }
-  const result = summaries.join("\n\n");
-  if (new TextEncoder().encode(result).length > MAX_INTERPRETER_SUMMARY_BYTES ||
-      new TextEncoder().encode(result).length > MAX_AI_MATERIAL_BYTES)
-    throw new Error(
-      "The combined study guide is too long. Split the PDF into smaller chapters.",
-    );
-  return { text: result, sectionCount: sections.length };
+  return { text: combineDocumentSummaries(summaries), sectionCount: sections.length };
 }
