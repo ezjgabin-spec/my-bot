@@ -38,7 +38,11 @@ export async function POST(request: Request) {
         throw new AppError("Invalid filename.");
       }
       filename = z.string().min(1).max(180).parse(filename);
-      const buffer = await readBytes(request, MAX_FILE_BYTES);
+      const buffer = await readBytes(
+        request,
+        MAX_FILE_BYTES,
+        "This file is too large. The maximum upload size is 99 MB.",
+      );
       const document = await extractDocument(filename, buffer);
       text = document.text;
       mime = document.mime;
@@ -64,7 +68,10 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(input.base64, "base64");
         original = buffer;
         if (buffer.length > MAX_FILE_BYTES)
-          throw new AppError("Files must be up to 90 MB.", 413);
+          throw new AppError(
+            "This file is too large. The maximum upload size is 99 MB.",
+            413,
+          );
         const document = await extractDocument(input.filename, buffer);
         text = document.text;
         mime = document.mime;

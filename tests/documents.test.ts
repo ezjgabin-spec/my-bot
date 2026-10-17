@@ -52,11 +52,11 @@ describe("document extraction", () => {
   });
   it("rejects empty and oversized files", async () => {
     await expect(extractDocument("empty.txt", Buffer.from(""))).rejects.toThrow(
-      /nonempty/,
+      /file is empty/,
     );
     await expect(
       extractDocument("big.txt", Buffer.alloc(MAX_FILE_BYTES + 1)),
-    ).rejects.toThrow(/90 MB/);
+    ).rejects.toThrow(/too large.*99 MB/);
   });
   it("rejects disguised PDFs", async () => {
     await expect(

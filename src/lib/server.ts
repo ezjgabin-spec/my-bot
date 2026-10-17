@@ -61,6 +61,7 @@ export async function readJson(
 export async function readBytes(
   request: Request,
   maxBytes: number,
+  tooLargeMessage = "Request is too large.",
 ): Promise<Buffer> {
   const reader = request.body?.getReader();
   if (!reader) throw new AppError("Request body is required.");
@@ -72,7 +73,7 @@ export async function readBytes(
     size += value.byteLength;
     if (size > maxBytes) {
       await reader.cancel();
-      throw new AppError("Request is too large.", 413);
+      throw new AppError(tooLargeMessage, 413);
     }
     chunks.push(value);
   }

@@ -72,8 +72,12 @@ export function validateText(text: string, minimumCharacters = 40) {
   return cleaned;
 }
 export async function extractDocument(filename: string, buffer: Buffer) {
-  if (!buffer.length || buffer.length > MAX_FILE_BYTES)
-    throw new AppError("Choose a nonempty file up to 90 MB.");
+  if (!buffer.length) throw new AppError("This file is empty.");
+  if (buffer.length > MAX_FILE_BYTES)
+    throw new AppError(
+      "This file is too large. The maximum upload size is 99 MB.",
+      413,
+    );
   const extension = filename.toLowerCase().split(".").pop();
   try {
     if (extension === "txt") {

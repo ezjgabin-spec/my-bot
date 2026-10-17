@@ -101,7 +101,9 @@ function CreateTest() {
         if (materialMode === "file") {
           if (!file) throw new Error("Choose a study guide first.");
           if (file.size > MAX_FILE_BYTES)
-            throw new Error("Files must be up to 90 MB.");
+            throw new Error(
+              "This file is too large. The maximum upload size is 99 MB.",
+            );
           upload = {
             method: "POST",
             headers: {
@@ -274,11 +276,12 @@ function CreateTest() {
               <label className="upload-zone">
                 <Upload size={28} />
                 <strong>{file ? file.name : "Choose your study guide"}</strong>
-                <span>PDF, Word (.docx), or TXT · up to 90 MB</span>
+                <span>PDF, Word (.docx), or TXT · up to 99 MB</span>
                 <span>PDFs: up to 500 pages · 500,000 characters of text</span>
                 <span>
-                  PDFs have no minimum length. More study material usually
-                  creates better questions.
+                  PDFs have no minimum file size and need at least one readable
+                  character. More study material usually creates better
+                  questions.
                 </span>
                 <input
                   type="file"
