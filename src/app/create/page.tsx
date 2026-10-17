@@ -33,7 +33,7 @@ function CreateTest() {
   const { state, connection, aiReady, refresh } = useWorkspace();
   const [examId, setExamId] = useState(search.get("exam") ?? "new");
   const [subject, setSubject] = useState(
-    search.get("subject") ?? "Precalculus",
+search.get("subject") ?? "Math",
   );
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
