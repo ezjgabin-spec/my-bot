@@ -18,9 +18,6 @@
       "migrations_dir": "cloudflare/migrations",
     },
   ],
-  "r2_buckets": [
-    { "binding": "MATERIALS", "bucket_name": "studypredict-materials" },
-  ],
   "vars": {
     "STUDYPREDICT_CLOUD": "1",
     "APP_ORIGIN": "https://studypredict.your-subdomain.workers.dev",
