@@ -127,7 +127,7 @@ export async function summarizeStudyDocument(material: string) {
       const summary = message.content
         .filter((block) => block.type === "text")
         .map((block) => block.text)
-        .join("\\n")
+        .join("\n")
         .trim();
       if (!summary) throw new AppError("Claude returned an empty PDF section summary.", 502);
       return summary;
