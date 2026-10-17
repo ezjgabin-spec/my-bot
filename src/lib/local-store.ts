@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { AppError } from "./server";
 import { isCloud } from "./cloud";
+import { combineDocumentSummaries, MAX_INTERPRETER_SECTIONS } from "./material-interpreter";
 
 export type StudyMaterial = {
   id: string;
@@ -25,6 +26,8 @@ export type StudyMaterial = {
   // Complete section-by-section AI study guide (optional for older materials).
   interpreted_text?: string;
   interpreted_sections?: number;
+  // Completed summaries awaiting the next interpretation request.
+  interpreted_parts?: string[];
   created_at: string;
 };
 
@@ -212,6 +215,35 @@ export async function cacheLocalMaterialInterpretation(
       material.interpreted_text = summary;
       material.interpreted_sections = sections;
     }
+  });
+}
+
+export async function saveLocalInterpretedSection(
+  materialId: string,
+  sectionIndex: number,
+  total: number,
+  summary: string,
+) {
+  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 ||
+      !Number.isInteger(total) || total < 1 || total > MAX_INTERPRETER_SECTIONS)
+    throw new AppError("Invalid document section.", 400);
+  if (!summary.trim() || new TextEncoder().encode(summary).length > 5_000)
+    throw new AppError("Claude returned an invalid section summary.", 502);
+  return updateLocalData((data) => {
+    const material = data.materials.find((item) => item.id === materialId);
+    if (!material) throw new AppError("Study material not found.", 404);
+    if (material.interpreted_text)
+      return { ready: true, completed: total, total };
+    const parts = [...(material.interpreted_parts ?? [])];
+    if (parts.length !== sectionIndex)
+      throw new AppError("Document interpretation changed. Retry this section.", 409);
+    parts.push(summary);
+    if (parts.length === total) {
+      material.interpreted_text = combineDocumentSummaries(parts);
+      material.interpreted_sections = total;
+      delete material.interpreted_parts;
+    } else material.interpreted_parts = parts;
+    return { ready: !!material.interpreted_text, completed: parts.length, total };
   });
 }
 
