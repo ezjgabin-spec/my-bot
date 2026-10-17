@@ -6,7 +6,7 @@ StudyPredict supports a Windows desktop app and a Cloudflare-hosted edition for 
 
 The desktop edition described below stores study data on your PC and uses your own Anthropic API key. It needs no account login, hosting, Supabase project, or database setup.
 
-Uploads support PDF, DOCX, and TXT files up to **20 MB**, PDFs up to **500 pages**, and extracted notes up to **500,000 characters**. Long documents are sampled across sections for each AI request, with focus-topic matches prioritized; the original extracted notes are retained. Scanned PDFs require OCR first. Complex PDFs can still hit hosting CPU or memory limits.
+Uploads support PDF, DOCX, and TXT files up to **20 MB**, PDFs up to **500 pages**, and extracted notes up to **500,000 characters**. Readable PDFs have no minimum text length, though more study material usually produces better questions. Long documents are sampled across sections for each AI request, with focus-topic matches prioritized; the original extracted notes are retained. Scanned PDFs require OCR first. Complex PDFs can still hit hosting CPU or memory limits.
 
 In **Tests & history**, use **Delete test** or **Delete exam**, or select a subject and choose **Delete subject**. A confirmation describes the related attempts, grades, and predictions that will be removed. Saved study materials remain available for reuse. Deletes affect only the signed-in account and cannot be undone in the app.
 

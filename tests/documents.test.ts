@@ -30,6 +30,14 @@ describe("document extraction", () => {
     expect(result.text).toContain("Function composition");
     expect(result.mime).toBe("application/pdf");
   });
+  it("accepts a readable PDF with less than 40 characters", async () => {
+    const result = await extractDocument(
+      "short.pdf",
+      makePdf({ pageText: "Tiny note" }),
+    );
+    expect(result.text).toContain("Tiny note");
+    expect(result.text.length).toBeLessThan(40);
+  });
   it("extracts text from a real DOCX fixture", async () => {
     const result = await extractDocument(
       "guide.docx",

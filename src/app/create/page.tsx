@@ -276,13 +276,19 @@ function CreateTest() {
                 <strong>{file ? file.name : "Choose your study guide"}</strong>
                 <span>PDF, Word (.docx), or TXT · up to 20 MB</span>
                 <span>PDFs: up to 500 pages · 500,000 characters of text</span>
+                <span>
+                  PDFs have no minimum length. More study material usually
+                  creates better questions.
+                </span>
                 <input
                   type="file"
                   required
                   accept=".pdf,.docx,.txt"
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 />
-                <span>Scanned PDFs need text recognition (OCR) first.</span>
+                <span>
+                  Scanned PDFs still need text recognition (OCR) first.
+                </span>
               </label>
             )}
             {materialMode === "existing" && (

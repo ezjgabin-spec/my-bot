@@ -57,11 +57,11 @@ async function inspectDocx(buffer: Buffer) {
     });
   });
 }
-export function validateText(text: string) {
+export function validateText(text: string, minimumCharacters = 40) {
   const cleaned = text
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
     .trim();
-  if (cleaned.length < 40)
+  if (cleaned.length < minimumCharacters)
     throw new AppError(
       "Not enough readable text was found. Scanned PDFs need OCR first; try pasting your notes or uploading a text-based file.",
     );
@@ -98,7 +98,7 @@ export async function extractDocument(filename: string, buffer: Buffer) {
         if (info.total > MAX_PDF_PAGES)
           throw new AppError("Please upload at most 500 PDF pages at a time.");
         return {
-          text: validateText((await parser.getText()).text),
+          text: validateText((await parser.getText()).text, 1),
           mime: "application/pdf",
           extension,
         };
