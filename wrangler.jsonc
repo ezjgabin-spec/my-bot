@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "studypredict",
+"name": "studybot"
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-10-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
