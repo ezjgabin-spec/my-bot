@@ -115,7 +115,7 @@ async function seed() {
     attemptId: await store.startLocalAttempt(testId),
   };
 }
-describe("Cloudflare D1 and R2 account isolation", () => {
+describe("Cloudflare D1 account isolation", () => {
   it("rejects unsigned requests before accessing stored data", async () => {
     expect((await stateRoute()).status).toBe(401);
     await expect(store.localState()).rejects.toMatchObject({ status: 401 });
@@ -150,12 +150,12 @@ describe("Cloudflare D1 and R2 account isolation", () => {
       store.getGenerationContext(owner.examId, owner.materialId),
     );
     expect(text.material).toContain("acceleration");
-    expect(
-      (await platform.env.MATERIALS.list({ prefix: "owner/" })).objects,
-    ).toHaveLength(1);
-    expect(
-      (await platform.env.MATERIALS.list({ prefix: "brother/" })).objects,
-    ).toHaveLength(1);
+    const ownerData = await as("owner", store.readLocalData);
+    const brotherData = await as("brother", store.readLocalData);
+    expect(ownerData.materials).toHaveLength(1);
+    expect(brotherData.materials).toHaveLength(1);
+    expect(ownerData.materials[0].extracted_text).toContain("acceleration");
+    expect(brotherData.materials[0].id).toBe(brother.materialId);
   });
   it("uploads actual material through the API and scopes it to the session", async () => {
     await as("upload-user", async () => {
@@ -173,9 +173,10 @@ describe("Cloudflare D1 and R2 account isolation", () => {
       );
       expect(response.status).toBe(201);
       const body = await response.json();
-      expect(
-        await platform.env.MATERIALS.get(`upload-user/${body.id}/original`),
-      ).not.toBeNull();
+      const saved = await store.readLocalData();
+      expect(saved.materials).toHaveLength(1);
+      expect(saved.materials[0].id).toBe(body.id);
+      expect(saved.materials[0].extracted_text).toContain("Newton's second law");
       expect(await store.listLocalMaterials()).toHaveLength(1);
     });
     expect(await as("brother", store.listLocalMaterials)).toHaveLength(0);
