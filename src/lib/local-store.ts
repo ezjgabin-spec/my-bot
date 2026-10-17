@@ -22,6 +22,9 @@ export type StudyMaterial = {
   filename: string;
   mime_type: string;
   extracted_text: string;
+  // Complete section-by-section AI study guide (optional for older materials).
+  interpreted_text?: string;
+  interpreted_sections?: number;
   created_at: string;
 };
 
@@ -191,6 +194,27 @@ export async function saveLocalMaterial(
   });
 }
 
+// Cache only the full guide for this user's own saved document. A summary is
+// never visible to another account and the original text remains unchanged.
+export async function cacheLocalMaterialInterpretation(
+  materialId: string,
+  summary: string,
+  sections: number,
+) {
+  if (!summary || new TextEncoder().encode(summary).length > 120_000 ||
+      !Number.isInteger(sections) || sections < 1 || sections > 24)
+    throw new AppError("The document summary could not be saved.", 413);
+  return updateLocalData((data) => {
+    const material = data.materials.find((item) => item.id === materialId);
+    if (!material) throw new AppError("Study material not found.", 404);
+    // Never overwrite an existing interpretation on a concurrent request.
+    if (!material.interpreted_text) {
+      material.interpreted_text = summary;
+      material.interpreted_sections = sections;
+    }
+  });
+}
+
 export async function getGenerationContext(examId: string, materialId: string) {
   const data = await readLocalData();
   const exam = data.exams.find((item) => item.id === examId);
@@ -206,6 +230,7 @@ export async function getGenerationContext(examId: string, materialId: string) {
   if (!subject) throw new AppError("The exam subject could not be found.", 500);
   return {
     subject: subject.name,
+    interpreted: material.interpreted_text ?? null,
     material: isCloud()
       ? await (await import("./cloud-store")).cloudMaterialText(materialId)
       : material.extracted_text,
