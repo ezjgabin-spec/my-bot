@@ -1,6 +1,8 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { isCloud } from "./cloud";
+import { cloudUser } from "./cloud-auth";
 
 export const LOCAL_USER = { id: "local-owner" } as const;
 
@@ -14,11 +16,22 @@ export class AppError extends Error {
 }
 
 export async function requireUser() {
+  if (isCloud()) return cloudUser();
   return LOCAL_USER;
 }
 
 export function protectMutation(request: Request) {
   const origin = request.headers.get("origin");
+  if (isCloud()) {
+    const allowed = process.env.APP_ORIGIN;
+    if (
+      !allowed ||
+      origin !== allowed ||
+      request.headers.get("sec-fetch-site") === "cross-site"
+    )
+      throw new AppError("Request origin is not allowed.", 403);
+    return;
+  }
   // Standalone Next may normalize request.url to localhost internally.
   // Compare against the actual loopback Host header validated by our proxy.
   const url = new URL(request.url);
@@ -82,7 +95,7 @@ export function apiError(error: unknown) {
   return NextResponse.json(
     {
       error:
-        "The operation could not be completed. Your saved work is still on this computer; please retry.",
+        "The operation could not be completed. Your saved work is preserved; please retry.",
     },
     { status: 500 },
   );

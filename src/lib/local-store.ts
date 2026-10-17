@@ -15,6 +15,7 @@ import type {
   Subject,
 } from "./types";
 import { AppError } from "./server";
+import { isCloud } from "./cloud";
 
 export type StudyMaterial = {
   id: string;
@@ -24,13 +25,13 @@ export type StudyMaterial = {
   created_at: string;
 };
 
-type LocalData = State & {
+export type LocalData = State & {
   version: 1;
   materials: StudyMaterial[];
   questions: (Question & { test_id: string })[];
 };
 
-const emptyData = (): LocalData => ({
+export const emptyData = (): LocalData => ({
   version: 1,
   subjects: [],
   exams: [],
@@ -101,6 +102,7 @@ async function save(data: LocalData) {
 }
 
 export async function readLocalData() {
+  if (isCloud()) return (await import("./cloud-store")).readCloudData();
   await shared.studyWriteQueue?.catch(() => undefined);
   return load();
 }
@@ -108,6 +110,10 @@ export async function readLocalData() {
 export function updateLocalData<T>(
   change: (data: LocalData) => T | Promise<T>,
 ): Promise<T> {
+  if (isCloud())
+    return import("./cloud-store").then((store) =>
+      store.updateCloudData(change),
+    );
   const operation = (shared.studyWriteQueue ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {
@@ -173,7 +179,13 @@ export async function listLocalMaterials() {
 
 export async function saveLocalMaterial(
   material: Omit<StudyMaterial, "created_at">,
+  original?: Uint8Array,
 ) {
+  if (isCloud())
+    return (await import("./cloud-store")).storeCloudMaterial(
+      material,
+      original,
+    );
   return updateLocalData((data) => {
     data.materials.push({ ...material, created_at: new Date().toISOString() });
   });
@@ -192,7 +204,12 @@ export async function getGenerationContext(examId: string, materialId: string) {
     );
   const subject = data.subjects.find((item) => item.id === exam.subject_id);
   if (!subject) throw new AppError("The exam subject could not be found.", 500);
-  return { subject: subject.name, material: material.extracted_text };
+  return {
+    subject: subject.name,
+    material: isCloud()
+      ? await (await import("./cloud-store")).cloudMaterialText(materialId)
+      : material.extracted_text,
+  };
 }
 
 export async function saveLocalTest(input: {

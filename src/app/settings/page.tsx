@@ -4,7 +4,13 @@ import Link from "next/link";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { useWorkspace } from "@/components/workspace";
 import type { DesktopSettings } from "@/lib/desktop";
+import { CloudSettings } from "@/components/cloud-settings";
 export default function Settings() {
+  if (process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1")
+    return <CloudSettings />;
+  return <DesktopSettingsPage />;
+}
+function DesktopSettingsPage() {
   const { refresh } = useWorkspace();
   const [settings, setSettings] = useState<DesktopSettings | null>(null);
   const [key, setKey] = useState("");

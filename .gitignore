@@ -11,3 +11,6 @@ release/
 desktop/staging/
 desktop/vendor-win/
 /StudyPredict-AI-source.zip
+.open-next/
+.wrangler/
+.dev.vars*

@@ -5,10 +5,13 @@ import { generatedTestSchema, generateSchema } from "./schemas";
 import { writtenGradesSchema, combineGrades } from "./grading";
 import { AppError } from "./server";
 import type { Question } from "./types";
+import { isCloud } from "./cloud";
 function client() {
   if (!process.env.ANTHROPIC_API_KEY)
     throw new AppError(
-      "Open Settings and add your Anthropic API key to generate tests and grade written answers.",
+      isCloud()
+        ? "The owner needs to connect the shared Anthropic API key."
+        : "Open Settings and add your Anthropic API key to generate tests and grade written answers.",
       503,
     );
   return new Anthropic({
@@ -22,7 +25,8 @@ export async function withAiLock<T>(
   _userId: string,
   run: () => Promise<T>,
 ): Promise<T> {
-  void _userId;
+  if (isCloud())
+    return (await import("./cloud-store")).withCloudAiLock(_userId, run);
   if (shared.studyAiBusy)
     throw new AppError(
       "Another AI request is running. Please wait a moment before retrying.",
@@ -80,7 +84,9 @@ async function structured<T>(
     if (error instanceof Anthropic.APIError) {
       const message =
         error.status === 401
-          ? "Claude authentication failed. Check your API key in Settings."
+          ? isCloud()
+            ? "The owner needs to update the shared Anthropic API key."
+            : "Claude authentication failed. Check your API key in Settings."
           : error.status === 429
             ? "Claude is rate-limited or out of credits. Retry later or check your Anthropic account."
             : "Claude could not complete the request. Check the configured model and API account, then retry.";

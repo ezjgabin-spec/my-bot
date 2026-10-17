@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Plus,
@@ -39,6 +39,7 @@ type Workspace = {
   state: State;
   connection: Connection;
   aiReady: boolean;
+  email: string | null;
   error: string;
   refresh: () => Promise<void>;
 };
@@ -61,17 +62,28 @@ export function useWorkspace() {
   return value;
 }
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState<State>(empty);
   const [connection, setConnection] = useState<Connection>("loading");
   const [aiReady, setAiReady] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/state", { cache: "no-store" });
       const data = await response.json();
+      if (
+        response.status === 401 &&
+        process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1"
+      ) {
+        setState(empty);
+        setEmail(null);
+        if (window.location.pathname !== "/login") router.replace("/login");
+      }
       if (!response.ok)
         throw new Error(data.error || "Unable to load your workspace.");
       setAiReady(data.aiReady);
+      setEmail(data.user?.email ?? null);
       setError("");
       setState(data.state);
       setConnection("ready");
@@ -79,12 +91,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setError(e instanceof Error ? e.message : "Unable to load workspace.");
       setConnection("error");
     }
-  }, []);
+  }, [router]);
   useEffect(() => {
     void Promise.resolve().then(refresh);
   }, [refresh]);
   return (
-    <Context.Provider value={{ state, connection, aiReady, error, refresh }}>
+    <Context.Provider
+      value={{ state, connection, aiReady, email, error, refresh }}
+    >
       {children}
     </Context.Provider>
   );
@@ -130,6 +144,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
   const animate =
     motion && !reducedMotion && !pathname.startsWith("/attempts/");
+  const cloud = process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1";
+  if (pathname === "/login" && cloud)
+    return <main className="login-wrap">{children}</main>;
   return (
     <MotionContext.Provider value={animate}>
       <div className="app-shell" data-motion={animate ? "on" : "off"}>
@@ -193,7 +210,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ShieldCheck size={18} />
             <div>
               <strong>Personal workspace</strong>
-              <span>Stored on this PC</span>
+              <span>
+                {cloud ? "Private to your account" : "Stored on this PC"}
+              </span>
             </div>
           </div>
         </aside>
@@ -221,7 +240,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 className={`status-dot ${connection === "ready" && aiReady ? "green" : ""}`}
               />
               {connection === "ready"
-                ? "Local workspace"
+                ? cloud
+                  ? "Private workspace"
+                  : "Local workspace"
                 : "Your personal study companion"}
               <span className="avatar">S</span>
             </div>
@@ -263,8 +284,9 @@ export function ConnectionNotice() {
     return (
       <div className="notice">
         <span>
-          Add your Anthropic API key to generate tests and grade written
-          answers.
+          {process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1"
+            ? "The owner needs to connect Claude before you can generate tests and grade written answers."
+            : "Add your Anthropic API key to generate tests and grade written answers."}
         </span>
         <Link href="/settings" className="text-link">
           Open Settings →

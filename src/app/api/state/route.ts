@@ -16,6 +16,7 @@ export async function GET() {
       {
         configured: true,
         aiReady: config.aiReady,
+        user: "email" in user ? { email: user.email } : null,
         state: await getState(user.id),
       },
       { headers: { "Cache-Control": "no-store" } },

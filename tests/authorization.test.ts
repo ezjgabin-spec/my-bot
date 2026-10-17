@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { proxy } from "../src/proxy";
+import { middleware as proxy } from "../src/middleware";
 import { protectMutation, readJson } from "../src/lib/server";
 afterEach(() => vi.unstubAllEnvs());
 function local(headers: Record<string, string> = {}) {

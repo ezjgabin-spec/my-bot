@@ -10,6 +10,8 @@ export default defineConfig([
   },
   globalIgnores([
     ".next/**",
+    ".open-next/**",
+    ".wrangler/**",
     "next-env.d.ts",
     "playwright-report/**",
     "test-results/**",

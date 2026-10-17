@@ -2,7 +2,7 @@
   "name": "studypredict-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Private Windows study practice and grade predictions",
+  "description": "Personal study practice and grade predictions for Windows and Cloudflare",
   "author": "StudyPredict",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -17,10 +17,19 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "format": "prettier --write src tests *.ts *.mjs *.json README.md"
+    "format": "prettier --write src tests *.ts *.mjs *.json README.md",
+    "cloud:build": "node scripts/cloud-build.mjs",
+    "cloud:preview": "wrangler dev",
+    "cloud:deploy": "node scripts/check-cloud-config.mjs && npm run cloud:build && npm run cloud:migrate && wrangler deploy",
+    "cloud:migrate": "wrangler d1 migrations apply studypredict --remote",
+    "cloud:migrate:local": "wrangler d1 migrations apply studypredict --local",
+    "test:cloud-runtime": "wrangler deploy --dry-run --outdir .wrangler/cloud-bundle && node tests/cloud-runtime.mjs",
+    "test:cloud-browser": "playwright test --config playwright.cloud.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@opennextjs/cloudflare": "^1.20.12",
+    "jose": "^6.2.12",
     "lucide-react": "^1.58.0",
     "mammoth": "^1.13.0",
     "next": "^16.4.2",
@@ -29,10 +38,12 @@
     "react-dom": "^19.3.1",
     "recharts": "^3.10.1",
     "server-only": "^0.0.1",
+    "unpdf": "^1.9.0",
     "yauzl": "^3.4.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261016.1",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.5",
@@ -43,10 +54,12 @@
     "electron-builder": "^26.15.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.2",
+    "miniflare": "^5.20261012.1-beta",
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.1"
   },
   "type": "module",
   "engines": {

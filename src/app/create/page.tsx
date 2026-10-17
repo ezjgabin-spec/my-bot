@@ -440,8 +440,9 @@ function CreateTest() {
           </button>
           {(connection !== "ready" || !aiReady) && (
             <p className="helper">
-              Open Settings and add your Anthropic API key to generate your
-              test.
+              {process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1"
+                ? "The owner needs to connect Claude before you can generate a test."
+                : "Open Settings and add your Anthropic API key to generate your test."}
             </p>
           )}
           <div className="privacy-note">

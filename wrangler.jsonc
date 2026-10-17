@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "studypredict",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-17",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "studypredict" },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "studypredict",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "cloudflare/migrations",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "MATERIALS", "bucket_name": "studypredict-materials" },
+  ],
+  "vars": {
+    "STUDYPREDICT_CLOUD": "1",
+    "APP_ORIGIN": "https://studypredict.your-subdomain.workers.dev",
+    "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "",
+    "ALLOWED_EMAILS": "*",
+    "AI_DAILY_USER_LIMIT": "10",
+    "AI_DAILY_SITE_LIMIT": "30",
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6",
+  },
+  "observability": { "enabled": true },
+}

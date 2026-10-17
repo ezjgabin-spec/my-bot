@@ -1,6 +1,10 @@
 # StudyPredict AI for Windows
 
-StudyPredict is a personal desktop app for practice tests and school-grade predictions. It stores study data on your PC and uses your Anthropic API key for question generation and written-answer grading. No Supabase project, account login, hosting, or database setup is required.
+StudyPredict supports a Windows desktop app and a Cloudflare-hosted edition for practice tests and school-grade predictions.
+
+**For a shareable online link with separate accounts, see [Cloudflare setup](CLOUDFLARE.md).** It uses email-code sign-in, private D1/R2 storage, and the owner's shared Anthropic key. Anyone with a verified email can sign in by default, with daily AI request limits.
+
+The desktop edition described below stores study data on your PC and uses your own Anthropic API key. It needs no account login, hosting, Supabase project, or database setup.
 
 ## Run it on Windows
 
