@@ -4,7 +4,7 @@ import { requireUser, apiError } from "@/lib/server";
 import { getState } from "@/lib/data";
 export const dynamic = "force-dynamic";
 export async function GET() {
-  const config = configurationStatus();
+  const config = await configurationStatus();
   if (!config.ready)
     return NextResponse.json(
       { configured: false, ...config },

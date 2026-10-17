@@ -5,9 +5,10 @@ import { generatedTestSchema, generateSchema } from "./schemas";
 import { writtenGradesSchema, combineGrades } from "./grading";
 import { AppError } from "./server";
 import type { Question } from "./types";
-import { isCloud } from "./cloud";
-function client() {
-  if (!process.env.ANTHROPIC_API_KEY)
+import { isCloud, anthropicApiKey } from "./cloud";
+async function client() {
+  const apiKey = await anthropicApiKey();
+  if (!apiKey)
     throw new AppError(
       isCloud()
         ? "The owner needs to connect the shared Anthropic API key."
@@ -15,7 +16,7 @@ function client() {
       503,
     );
   return new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey,
     timeout: 150_000,
     maxRetries: 1,
   });
@@ -45,7 +46,7 @@ async function structured<T>(
   payload: unknown,
 ): Promise<T> {
   try {
-    const message = await client().messages.create({
+    const message = await (await client()).messages.create({
       model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
       max_tokens: 24000,
       system,
