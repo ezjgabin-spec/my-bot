@@ -92,44 +92,30 @@ export async function updateCloudData<T>(
   );
 }
 
+// During the D1-only beta, keep extracted notes in the student's private
+// workspace. The original binary is deliberately not retained; extracted text
+// is all the generation workflow needs. Never share text across users.
 export async function storeCloudMaterial(
   material: Omit<StudyMaterial, "created_at">,
-  original?: Uint8Array,
+  _original?: Uint8Array,
 ) {
-  const { id } = await requireUser();
-  const { MATERIALS } = await cloudBindings();
-  const prefix = `${encodeURIComponent(id)}/${material.id}`;
-  await MATERIALS.put(`${prefix}/text`, material.extracted_text, {
-    httpMetadata: { contentType: "text/plain; charset=utf-8" },
-  });
-  try {
-    if (original)
-      await MATERIALS.put(`${prefix}/original`, original, {
-        httpMetadata: { contentType: material.mime_type },
-      });
-    await updateCloudData((data) => {
-      data.materials.push({
-        ...material,
-        extracted_text: "",
-        created_at: new Date().toISOString(),
-      });
+  if (new TextEncoder().encode(material.extracted_text).byteLength > 100_000)
+    throw new AppError("Study notes are too long for beta storage. Paste a shorter selection.", 413);
+  await updateCloudData((data) => {
+    data.materials.push({
+      ...material,
+      created_at: new Date().toISOString(),
     });
-  } catch (error) {
-    await MATERIALS.delete([`${prefix}/text`, `${prefix}/original`]).catch(
-      () => undefined,
-    );
-    throw error;
-  }
+  });
 }
 
 export async function cloudMaterialText(materialId: string) {
-  const { id } = await requireUser();
-  const { MATERIALS } = await cloudBindings();
-  const file = await MATERIALS.get(
-    `${encodeURIComponent(id)}/${materialId}/text`,
-  );
-  if (!file) throw new AppError("Study material could not be found.", 404);
-  return file.text();
+  const data = await readCloudData();
+  const material = data.materials.find((item) => item.id === materialId);
+  if (!material) throw new AppError("Study material could not be found.", 404);
+  if (!material.extracted_text)
+    throw new AppError("This material was stored before D1-only mode and its text is unavailable. Please upload the notes again.", 409);
+  return material.extracted_text;
 }
 
 export async function withCloudAiLock<T>(
