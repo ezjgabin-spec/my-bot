@@ -64,7 +64,7 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(input.base64, "base64");
         original = buffer;
         if (buffer.length > MAX_FILE_BYTES)
-          throw new AppError("Files must be up to 20 MB.", 413);
+          throw new AppError("Files must be up to 90 MB.", 413);
         const document = await extractDocument(input.filename, buffer);
         text = document.text;
         mime = document.mime;

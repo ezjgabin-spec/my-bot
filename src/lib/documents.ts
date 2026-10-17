@@ -73,7 +73,7 @@ export function validateText(text: string, minimumCharacters = 40) {
 }
 export async function extractDocument(filename: string, buffer: Buffer) {
   if (!buffer.length || buffer.length > MAX_FILE_BYTES)
-    throw new AppError("Choose a nonempty file up to 20 MB.");
+    throw new AppError("Choose a nonempty file up to 90 MB.");
   const extension = filename.toLowerCase().split(".").pop();
   try {
     if (extension === "txt") {
@@ -92,7 +92,7 @@ export async function extractDocument(filename: string, buffer: Buffer) {
     if (extension === "pdf") {
       if (!buffer.subarray(0, 5).equals(Buffer.from("%PDF-")))
         throw new AppError("The file does not contain a valid PDF header.");
-      const parser = new PDFParse({ data: new Uint8Array(buffer) });
+      const parser = new PDFParse({ data: buffer });
       try {
         const info = await parser.getInfo();
         if (info.total > MAX_PDF_PAGES)

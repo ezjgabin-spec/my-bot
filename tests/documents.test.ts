@@ -56,7 +56,7 @@ describe("document extraction", () => {
     );
     await expect(
       extractDocument("big.txt", Buffer.alloc(MAX_FILE_BYTES + 1)),
-    ).rejects.toThrow(/20 MB/);
+    ).rejects.toThrow(/90 MB/);
   });
   it("rejects disguised PDFs", async () => {
     await expect(
