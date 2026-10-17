@@ -20,7 +20,7 @@
   ],
   "vars": {
     "STUDYPREDICT_CLOUD": "1",
-"APP_ORIGIN": "https://studybot.example.workers.dev",
+"APP_ORIGIN": "https://studybot.ezjgabin.workers.dev",
     "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
     "CF_ACCESS_AUD": "",
     "ALLOWED_EMAILS": "*",
