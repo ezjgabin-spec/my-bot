@@ -1,9 +1,9 @@
 export const SUBJECTS = [
-  "Precalculus",
-  "Physics",
-  "Spanish",
-  "English",
+  "Math",
   "History",
+  "Science",
+  "Language",
+  "English",
 ] as const;
 export const DIFFICULTIES = [
   "Easy",
