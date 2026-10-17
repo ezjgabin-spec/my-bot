@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "studypredict",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "17c649e3-ea6d-4a7a-ba38-02f89159de7e",
       "migrations_dir": "cloudflare/migrations",
     },
   ],
