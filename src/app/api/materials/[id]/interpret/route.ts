@@ -19,6 +19,21 @@ export async function POST(
     const user = await requireUser();
     const id = uuid.parse((await params).id);
 
+    const existing = (await readLocalData()).materials.find((m) => m.id === id);
+    if (!existing) throw new AppError("Study material not found.", 404);
+    if (existing.interpreted_text ||
+        new TextEncoder().encode(existing.extracted_text).length <= MAX_AI_MATERIAL_BYTES)
+      return NextResponse.json(
+        existing.interpreted_text
+          ? {
+              ready: true,
+              completed: existing.interpreted_sections ?? 1,
+              total: existing.interpreted_sections ?? 1,
+            }
+          : { ready: true, completed: 0, total: 0 },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+
     const progress = await withAiLock(user.id, async () => {
       // Re-read *inside* the per-user lock to avoid duplicate Claude calls.
       const material = (await readLocalData()).materials.find((m) => m.id === id);
