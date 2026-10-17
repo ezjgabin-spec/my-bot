@@ -131,7 +131,7 @@ function CreateTest() {
       }
       if (!mid) throw new Error("Choose a saved study material.");
       setStage(
-        "Claude is building your questions and rubrics. This can take a minute or two…",
+        "Claude is interpreting every section of large documents, then building your questions. Longer PDFs may take several minutes…",
       );
       const result = await api<{ testId: string }>("/api/tests/generate", {
         method: "POST",
