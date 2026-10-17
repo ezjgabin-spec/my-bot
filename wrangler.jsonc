@@ -21,7 +21,7 @@
   "vars": {
     "STUDYPREDICT_CLOUD": "1",
 "APP_ORIGIN": "https://studybot.ezjgabin.workers.dev",
-    "CF_ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
+"CF_ACCESS_TEAM_DOMAIN": "young-wildflower-3f2f.cloudflareaccess.com",
     "CF_ACCESS_AUD": "",
     "ALLOWED_EMAILS": "*",
     "AI_DAILY_USER_LIMIT": "10",
