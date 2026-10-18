@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { PageHeader, ErrorMessage } from "@/components/ui";
+import { AppearanceSettings } from "@/components/appearance-settings";
 import { useWorkspace } from "@/components/workspace";
 import type { DesktopSettings } from "@/lib/desktop";
 import { CloudSettings } from "@/components/cloud-settings";
@@ -73,6 +74,7 @@ function DesktopSettingsPage() {
         title="One key. Ready to study."
         description="Your tests and grades stay on this computer. No Supabase account or website setup is needed."
       />
+      <AppearanceSettings />
       <section className="panel form-panel" style={{ maxWidth: 760 }}>
         <h2>Connect Claude</h2>
         <p className="muted">
