@@ -11,6 +11,7 @@ import {
 import { extractDocument, validateText, MAX_FILE_BYTES } from "@/lib/documents";
 import { listLocalMaterials, saveLocalMaterial } from "@/lib/local-store";
 import { MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
+import { importPublicStudyLink } from "@/lib/study-links";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export async function GET() {
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
         .object({
           filename: z.string().min(1).max(180),
           text: z.string().max(MAX_MATERIAL_CHARACTERS).optional(),
+          sourceUrl: z.string().url().max(2048).optional(),
           base64: z
             .string()
             .max(Math.ceil(MAX_FILE_BYTES / 3) * 4)
@@ -61,7 +63,12 @@ export async function POST(request: Request) {
           await readJson(request, Math.ceil(MAX_FILE_BYTES / 3) * 4 + 4096),
         );
       filename = input.filename;
-      if (input.text !== undefined) text = validateText(input.text);
+      if (input.sourceUrl) {
+        const imported = await importPublicStudyLink(input.sourceUrl);
+        filename = imported.filename;
+        text = imported.text;
+        mime = imported.mime;
+      } else if (input.text !== undefined) text = validateText(input.text);
       else if (input.base64) {
         if (!/^[A-Za-z0-9+/]*={0,2}$/.test(input.base64))
           throw new AppError("Invalid file encoding.");

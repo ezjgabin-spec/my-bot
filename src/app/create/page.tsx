@@ -38,6 +38,7 @@ function CreateTest() {
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [notesLink, setNotesLink] = useState("");
   const [materialMode, setMaterialMode] = useState(
     search.get("material") ? "existing" : "notes",
   );
@@ -112,6 +113,14 @@ function CreateTest() {
               "X-Filename": encodeURIComponent(file.name),
             },
             body: file,
+          };
+        } else if (materialMode === "link") {
+          upload = {
+            method: "POST",
+            body: JSON.stringify({
+              filename: "Linked study notes.txt",
+              sourceUrl: notesLink,
+            }),
           };
         } else
           upload = {
@@ -260,6 +269,7 @@ function CreateTest() {
               {[
                 ["notes", "Paste notes"],
                 ["file", "Upload a file"],
+                ["link", "Paste a link"],
                 ["existing", "Saved materials"],
               ].map(([value, label]) => (
                 <button
@@ -309,6 +319,24 @@ function CreateTest() {
                 />
                 <span>
                   Scanned PDFs still need text recognition (OCR) first.
+                </span>
+              </label>
+            )}
+            {materialMode === "link" && (
+              <label className="notes-label">
+                Public notes link
+                <input
+                  type="url"
+                  required
+                  maxLength={2048}
+                  placeholder="https://docs.google.com/document/d/..."
+                  value={notesLink}
+                  onChange={(e) => setNotesLink(e.target.value)}
+                />
+                <span className="helper">
+                  Paste a publicly viewable Google Doc or a public GitHub raw
+                  TXT/Markdown link. Private Canvas, Classroom, or school
+                  assignments still need an authorized connection or upload.
                 </span>
               </label>
             )}

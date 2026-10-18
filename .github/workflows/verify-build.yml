@@ -17,6 +17,6 @@ jobs:
       - name: TypeScript diagnostics
         run: npm run typecheck
       - name: Document interpreter and D1 isolation tests
-        run: npx vitest run tests/material-interpreter.test.ts tests/cloud-store.test.ts
+        run: npx vitest run tests/material-interpreter.test.ts tests/cloud-store.test.ts tests/study-links.test.ts
       - name: Cloudflare bundle diagnostics
         run: npm run cloud:build
