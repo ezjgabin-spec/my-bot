@@ -20,6 +20,7 @@
   ],
   "vars": {
     "STUDYPREDICT_CLOUD": "1",
+    "PASSWORD_AUTH_ENABLED": "0",
 "APP_ORIGIN": "https://studybot.ezjgabin.workers.dev",
 "CF_ACCESS_TEAM_DOMAIN": "young-wildflower-3f2f.cloudflareaccess.com",
 "CF_ACCESS_AUD": "016b01214c38b5f3ad9edf10ee8a18450971120fd3616782fd4961a58f708c33",
