@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AppShell, WorkspaceProvider } from "@/components/workspace";
 import { AppearanceProvider } from "@/components/appearance-provider";
 import "./globals.css";
+import "./appearance.css";
 export const metadata: Metadata = {
   title: "StudyPredict AI — Your personal study space",
   description:
