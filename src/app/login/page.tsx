@@ -1,5 +1,9 @@
 import { redirect } from "next/navigation";
+import { PasswordLogin } from "@/components/password-login";
+export const dynamic = "force-dynamic";
 export default function Login() {
+  if (process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1" && process.env.PASSWORD_AUTH_ENABLED === "1")
+    return <PasswordLogin />;
   if (process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1")
     return (
       <section className="panel form-panel login-card">

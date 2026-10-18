@@ -57,6 +57,9 @@ export async function verifyAccessToken(token: string, keys?: JWTVerifyGetKey) {
 }
 
 export async function cloudUser() {
+  // Opt-in migration: preserve existing Cloudflare Access users by default.
+  if (process.env.PASSWORD_AUTH_ENABLED === "1")
+    return (await import("./password-auth")).passwordUser();
   const token =
     (await headers()).get("cf-access-jwt-assertion") ??
     (await cookies()).get("CF_Authorization")?.value;

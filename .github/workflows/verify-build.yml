@@ -20,3 +20,10 @@ jobs:
         run: npx vitest run tests/material-interpreter.test.ts tests/cloud-store.test.ts tests/study-links.test.ts tests/pptx-import.test.ts tests/appearance.test.ts
       - name: Cloudflare bundle diagnostics
         run: npm run cloud:build
+
+      - name: Dry-run Worker bundle and check current Cloudflare size limit
+        run: |
+          npx wrangler deploy --dry-run --outdir .wrangler/cloud-bundle
+          node scripts/check-worker-size.mjs
+      - name: Verified email signup and free-tier runtime tests
+        run: node tests/cloud-password-runtime.mjs
