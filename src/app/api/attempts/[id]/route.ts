@@ -9,12 +9,15 @@ import {
 import { uuid, saveAnswersSchema } from "@/lib/schemas";
 import { getAttempt } from "@/lib/data";
 import { saveLocalAnswers } from "@/lib/local-store";
+import { canSeePredictions } from "@/lib/billing";
 type Context = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, context: Context) {
   try {
     const user = await requireUser();
+    const view = await getAttempt(user.id, uuid.parse((await context.params).id));
+    const allowed = await canSeePredictions();
     return NextResponse.json(
-      await getAttempt(user.id, uuid.parse((await context.params).id)),
+      { ...view, prediction: allowed ? view.prediction : null },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (e) {

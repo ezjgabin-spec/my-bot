@@ -2,6 +2,8 @@
 import { PageHeader } from "./ui";
 import { AppearanceSettings } from "./appearance-settings";
 import { useWorkspace } from "./workspace";
+import { CodeRedemption } from "./code-redemption";
+import Link from "next/link";
 export function CloudSettings() {
   const { aiReady, email, connection, error } = useWorkspace();
   return (
@@ -12,6 +14,7 @@ export function CloudSettings() {
         description="Your notes, practice tests, and grades are private to your signed-in account."
       />
       <AppearanceSettings />
+      <CodeRedemption />
       <section className="panel form-panel" style={{ maxWidth: 760 }}>
         <h2>Signed in as</h2>
         <p>{email || "Loading your account…"}</p>
@@ -23,7 +26,7 @@ export function CloudSettings() {
           {connection === "error"
             ? error
             : aiReady
-              ? "Connected. AI usage is paid for by the owner."
+              ? "Connected. Your plan and access are managed under Plans & credits."
               : "The owner needs to add the shared Anthropic API key in Cloudflare."}
         </p>
         <p className="muted">
@@ -42,9 +45,9 @@ export function CloudSettings() {
           administers the storage.
         </p>
         <p className="helper">
-          AI requests have daily account and site limits to control shared
-          costs. Limits reset at midnight UTC. Your existing tests remain
-          available when a limit is reached.
+          View your allowances, Free Test Bank, purchased credits and recent
+          AI activity under <Link href="/pricing">Plans & credits</Link>.
+          Your existing tests remain available when credits run out.
         </p>
         <p className="helper">
           Work saved in the Windows desktop app stays in that app. This online

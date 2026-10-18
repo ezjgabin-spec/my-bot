@@ -6,6 +6,7 @@ import { AppearanceSettings } from "@/components/appearance-settings";
 import { useWorkspace } from "@/components/workspace";
 import type { DesktopSettings } from "@/lib/desktop";
 import { CloudSettings } from "@/components/cloud-settings";
+import { CodeRedemption } from "@/components/code-redemption";
 export default function Settings() {
   if (process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1")
     return <CloudSettings />;
@@ -75,6 +76,7 @@ function DesktopSettingsPage() {
         description="Your tests and grades stay on this computer. No Supabase account or website setup is needed."
       />
       <AppearanceSettings />
+      <CodeRedemption />
       <section className="panel form-panel" style={{ maxWidth: 760 }}>
         <h2>Connect Claude</h2>
         <p className="muted">

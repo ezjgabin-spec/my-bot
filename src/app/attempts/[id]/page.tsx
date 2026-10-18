@@ -403,6 +403,7 @@ export default function AttemptPage({
   );
 }
 function Results({ view }: { view: AttemptView }) {
+  const { entitlement } = useWorkspace();
   const p = view.prediction;
   const weak = [
     ...new Set(
@@ -488,8 +489,7 @@ function Results({ view }: { view: AttemptView }) {
             </>
           ) : (
             <p>
-              No forecast was saved because an actual grade was already recorded
-              for this exam.
+              {entitlement && !entitlement.predictions ? <>Your results are saved. <Link href="/pricing">Unlock grade predictions with a paid plan →</Link></> : "No forecast was saved because an actual grade was already recorded for this exam."}
             </p>
           )}
         </section>

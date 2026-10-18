@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   Waves,
+  Wallet,
 } from "lucide-react";
 import type { State } from "@/lib/types";
 import type { CSSProperties } from "react";
@@ -38,6 +39,7 @@ const empty: State = {
 };
 type Connection = "loading" | "ready" | "error";
 type Workspace = {
+  entitlement: { plan: string; family: boolean; predictions: boolean } | null;
   state: State;
   connection: Connection;
   aiReady: boolean;
@@ -70,6 +72,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [aiReady, setAiReady] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [entitlement, setEntitlement] = useState<Workspace["entitlement"]>(null);
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/state", { cache: "no-store" });
@@ -85,6 +88,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (!response.ok)
         throw new Error(data.error || "Unable to load your workspace.");
       setAiReady(data.aiReady);
+      setEntitlement(data.entitlement ?? null);
       setEmail(data.user?.email ?? null);
       setError("");
       setState(data.state);
@@ -99,7 +103,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
   return (
     <Context.Provider
-      value={{ state, connection, aiReady, email, error, refresh }}
+      value={{ state, connection, aiReady, email, error, refresh, entitlement }}
     >
       {children}
     </Context.Provider>
@@ -115,10 +119,11 @@ const navigation = [
     icon: ChartNoAxesCombined,
   },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/pricing", label: "Plans & credits", icon: Wallet },
 ];
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { connection, aiReady } = useWorkspace();
+  const { connection, aiReady, entitlement } = useWorkspace();
   const { appearance } = useAppearance();
   const themeVariables = useAppearanceVariables();
   const [open, setOpen] = useState(false);
@@ -280,6 +285,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </header>
           <main key={pathname}>
             {pathname !== "/settings" && <ConnectionNotice />}
+            {pathname === "/" && entitlement && !entitlement.predictions && <div className="notice"><span>Your practice results are saved. Unlock grade predictions and full analytics with a paid plan.</span><Link href="/pricing" className="text-link">Explore plans →</Link></div>}
             {children}
           </main>
           <footer>

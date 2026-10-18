@@ -44,6 +44,12 @@ export async function updateCloudData<T>(
   change: (data: LocalData) => T | Promise<T>,
 ): Promise<T> {
   const { id: userId } = await requireUser();
+  return updateCloudDataForUser(userId, change);
+}
+
+// Internal payment fulfillment only. Routes must authenticate the user or
+// verify a payment-provider signature before choosing this ID.
+export async function updateCloudDataForUser<T>(userId: string, change: (data: LocalData) => T | Promise<T>): Promise<T> {
   const { DB } = await cloudBindings();
   for (let retry = 0; retry < 8; retry++) {
     const { data, rows, revision } = await snapshot(userId);
@@ -134,8 +140,10 @@ export async function withCloudAiLock<T>(
   run: () => Promise<T>,
   purpose: "assessment" | "interpretation" = "assessment",
 ): Promise<T> {
+  void purpose;
   if ((await requireUser()).id !== userId)
     throw new AppError("Not allowed.", 403);
+  if ((await (await import("./billing")).billingAccount()).family) return run();
   const { DB } = await cloudBindings();
   const token = crypto.randomUUID();
   const now = Date.now();
@@ -150,50 +158,7 @@ export async function withCloudAiLock<T>(
       409,
     );
   try {
-    const day = new Date().toISOString().slice(0, 10);
-    const limit = (value: string | undefined, fallback: number) => {
-      const parsed = Number(value);
-      return Number.isInteger(parsed) && parsed > 0 && parsed <= 10000
-        ? parsed
-        : fallback;
-    };
-    const interpreting = purpose === "interpretation";
-    const scopes = interpreting
-      ? ["interpretation:site", `interpretation:user:${userId}`]
-      : ["site", `user:${userId}`];
-    const reserved = await DB.batch([
-      DB.prepare(
-        "UPDATE ai_leases SET quota_reserved = 1 WHERE user_id = ? AND token = ? AND COALESCE((SELECT requests FROM ai_daily_usage WHERE day = ? AND scope = ?), 0) < ? AND COALESCE((SELECT requests FROM ai_daily_usage WHERE day = ? AND scope = ?), 0) < ?",
-      ).bind(
-        userId,
-        token,
-        day,
-        scopes[0],
-        interpreting
-          ? limit(process.env.INTERPRETER_DAILY_SITE_LIMIT, 1500)
-          : limit(process.env.AI_DAILY_SITE_LIMIT, 30),
-        day,
-        scopes[1],
-        interpreting
-          ? limit(process.env.INTERPRETER_DAILY_USER_LIMIT, 500)
-          : limit(process.env.AI_DAILY_USER_LIMIT, 10),
-      ),
-      ...scopes.map((scope) =>
-        DB.prepare(
-          "INSERT INTO ai_daily_usage(day, scope, requests) SELECT ?, ?, 1 WHERE EXISTS (SELECT 1 FROM ai_leases WHERE user_id = ? AND token = ? AND quota_reserved = 1) ON CONFLICT(day, scope) DO UPDATE SET requests = requests + 1",
-        ).bind(day, scope, userId, token),
-      ),
-      DB.prepare("DELETE FROM ai_daily_usage WHERE day < ?").bind(
-        new Date(now - 7 * 86400000).toISOString().slice(0, 10),
-      ),
-    ]);
-    if (!reserved[0].meta.changes)
-      throw new AppError(
-        interpreting
-          ? "The daily interpretation limit has been reached. Keep this tab open and resume after midnight UTC, or ask the owner to adjust the interpretation allowance."
-          : "The daily AI request limit has been reached. Try again tomorrow (limits reset at midnight UTC). Your work is saved.",
-        429,
-      );
+    // Per-call wallet reservations replace the old shared daily request quota.
     return await run();
   } finally {
     await DB.prepare("DELETE FROM ai_leases WHERE user_id = ? AND token = ?")

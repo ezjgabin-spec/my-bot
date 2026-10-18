@@ -21,6 +21,7 @@ import { DELETE as deleteSubject } from "../src/app/api/subjects/[id]/route";
 import { DELETE as deleteTest } from "../src/app/api/tests/[id]/route";
 import { DELETE as deleteExam } from "../src/app/api/exams/[id]/route";
 import { POST as interpret } from "../src/app/api/materials/interpret/route";
+import { reserveUsage, settleUsage, redeemFamilyCode } from "../src/lib/billing";
 
 const context = new AsyncLocalStorage<string>();
 let platform: Awaited<ReturnType<typeof getPlatformProxy<CloudBindings>>>;
@@ -60,6 +61,7 @@ beforeAll(async () => {
   );
 });
 beforeEach(async () => {
+  vi.stubEnv("FAMILY_CODE_SHA256", "5014754c782e050b8561badb73161e1b10912c638bd6a5fd8d3b037ab8e67c6f");
   vi.stubEnv("STUDYPREDICT_CLOUD", "1");
   vi.stubEnv("APP_ORIGIN", "https://study.example.com");
   vi.stubEnv("ANTHROPIC_API_KEY", "");
@@ -140,7 +142,7 @@ describe("Cloudflare D1 account isolation", () => {
     ).toBe(400);
     expect((await as("owner", () => interpret(request(" ")))).status).toBe(400);
   });
-  it("reserves interpretation quota separately and enforces its limit", async () => {
+  it("uses metered wallets instead of the legacy interpretation request quota", async () => {
     vi.stubEnv("INTERPRETER_DAILY_USER_LIMIT", "2");
     try {
       await as("owner", () =>
@@ -149,11 +151,7 @@ describe("Cloudflare D1 account isolation", () => {
       await as("owner", () =>
         withAiLock("owner", async () => "section 2", "interpretation"),
       );
-      await expect(
-        as("owner", () =>
-          withAiLock("owner", async () => "section 3", "interpretation"),
-        ),
-      ).rejects.toMatchObject({ status: 429 });
+      expect(await as("owner", () => withAiLock("owner", async () => "section 3", "interpretation"))).toBe("section 3");
       expect(
         await as("owner", () => withAiLock("owner", async () => "test")),
       ).toBe("test");
@@ -406,16 +404,37 @@ describe("Cloudflare D1 account isolation", () => {
       await as("owner", () => withAiLock("owner", async () => "released")),
     ).toBe("released");
   });
-  it("atomically limits shared spending across different accounts", async () => {
-    vi.stubEnv("AI_DAILY_SITE_LIMIT", "1");
+  it("atomically prevents two requests from spending the same account balance", async () => {
     const attempts = await Promise.allSettled(
-      ["owner", "brother"].map((id) =>
-        as(id, () => withAiLock(id, async () => "one request")),
+      ["owner", "owner"].map((id) =>
+        as(id, () => reserveUsage({ operation: "test", model: "test", pricingVersion: "test" }, 250_000, 250_000)),
       ),
     );
     expect(attempts.filter((x) => x.status === "fulfilled")).toHaveLength(1);
     expect(attempts.find((x) => x.status === "rejected")).toMatchObject({
-      reason: { status: 429 },
+      reason: { status: 402 },
+    });
+  });
+  it("keeps billing and usage private and bypasses all credit limits for family", async () => {
+    await as("owner", async () => {
+      await redeemFamilyCode("test-family-access");
+      const receipt = await reserveUsage({ operation: "test", model: "test", pricingVersion: "test" }, 100_000_000, 100_000_000);
+      await settleUsage(receipt.id, { cost: 90_000_000, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, providerId: "test" });
+      expect((await store.readLocalData()).billingUsage[0].chargedMicros).toBe(0);
+    });
+    expect((await as("brother", store.readLocalData)).billingUsage).toEqual([]);
+  });
+  it("hides saved predictions from free accounts at both public API boundaries", async () => {
+    await as("owner", async () => {
+      const { attemptId, testId } = await seed();
+      const questions = await store.localQuestionsForTest(testId);
+      await store.saveLocalAnswers(attemptId, { [questions[0].id]: "ma" }, []);
+      const params = { params: Promise.resolve({ id: attemptId }) };
+      expect((await submit(new Request("https://study.example.com/api/attempts/" + attemptId + "/submit", { method: "POST", headers: origin }), params)).status).toBe(200);
+      expect((await (await viewAttempt(new Request("https://study.example.com"), params)).json()).prediction).toBeNull();
+      expect((await (await stateRoute()).json()).state.predictions).toEqual([]);
+      await redeemFamilyCode("test-family-access");
+      expect((await (await viewAttempt(new Request("https://study.example.com"), params)).json()).prediction).not.toBeNull();
     });
   });
 });

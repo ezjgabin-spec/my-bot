@@ -31,6 +31,8 @@ const runtime = new Miniflare(
       ANTHROPIC_API_KEY: "test-placeholder-not-a-real-key",
       AI_DAILY_USER_LIMIT: "10",
       AI_DAILY_SITE_LIMIT: "30",
+      BILLING_ADMIN_EMAILS: "owner@example.com",
+      FAMILY_CODE_SHA256: "5014754c782e050b8561badb73161e1b10912c638bd6a5fd8d3b037ab8e67c6f",
     },
     serviceBindings: {
       ASSETS: () => new Response("Not found", { status: 404 }),
@@ -41,6 +43,9 @@ const runtime = new Miniflare(
         url.href === "https://study.cloudflareaccess.com/cdn-cgi/access/certs"
       )
         return Response.json({ keys: [publicJwk] });
+      if (
+        url.hostname === "api.anthropic.com" && url.pathname === "/v1/messages/count_tokens"
+      ) return Response.json({ input_tokens: 100 });
       if (
         url.hostname === "api.anthropic.com" &&
         url.pathname === "/v1/messages"
@@ -148,6 +153,12 @@ try {
   assert.equal(initial.user.email, "owner@example.com");
   assert.equal(initial.aiReady, true);
   assert.deepEqual(initial.state.exams, []);
+  assert.equal(initial.entitlement.predictions, false);
+  await api(owner, "/api/billing/code", { code: "test-family-access" });
+  assert.equal((await api(owner, "/api/billing")).family, true);
+  assert.equal((await api(brother, "/api/billing")).family, false);
+  await api(brother, "/api/billing/code", { code: "test-family-access" });
+  await api(brother, "/api/billing/admin", null, "GET", 403);
   await api(
     null,
     "/api/materials/interpret",
@@ -257,6 +268,12 @@ try {
   assert.equal(completed.attempt.score, 100);
   assert.equal(completed.prediction.subject, "Math");
   assert.equal(completed.results.length, 10);
+  const billing = await api(owner, "/api/billing");
+  assert.equal(billing.usage.length, 2);
+  assert.equal(billing.usage[0].chargedMicros, 0);
+  assert.ok(billing.totalCostMicros > 0);
+  const admin = await api(owner, "/api/billing/admin");
+  assert.ok(admin.accounts.find((a) => a.email === "owner@example.com").familyCostMicros > 0);
   await api(owner, `/api/exams/${exam.id}/grade`, { grade: 92 }, "PUT");
   assert.equal((await api(owner, "/api/state")).state.grades[0].grade, 92);
   assert.deepEqual((await api(brother, "/api/state")).state.grades, []);

@@ -1,4 +1,8 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+let directory: string;
 const mocked = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("@anthropic-ai/sdk", () => {
   class APIError extends Error {
@@ -6,7 +10,7 @@ vi.mock("@anthropic-ai/sdk", () => {
   }
   class Anthropic {
     static APIError = APIError;
-    messages = { create: mocked.create };
+    messages = { create: async (...args: unknown[]) => ({ id: "msg_test", usage: { input_tokens: 100, output_tokens: 100 }, ...await mocked.create(...args) }), countTokens: async () => ({ input_tokens: 100 }) };
   }
   return { default: Anthropic };
 });
@@ -37,11 +41,13 @@ function respond(input: unknown) {
     content: [{ type: "tool_use", name: "return_result", input }],
   });
 }
-beforeEach(() => {
+beforeEach(async () => {
+  directory = await mkdtemp(path.join(os.tmpdir(), "study-ai-billing-"));
+  vi.stubEnv("STUDYPREDICT_DATA_DIR", directory);
   vi.stubEnv("ANTHROPIC_API_KEY", "test-only-not-a-real-key");
   mocked.create.mockReset();
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(async () => { vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
 describe("Claude boundary validation (SDK mocked; no live network)", () => {
   it("balances answer positions and preserves correct text for grading", async () => {
     respond({ questions });

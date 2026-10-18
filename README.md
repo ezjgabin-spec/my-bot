@@ -52,6 +52,8 @@ The local study engine binds only to loopback, uses a random launch-specific ses
 
 ## Prediction model
 
+Subscription plans, credits, family access, usage monitoring and payment setup are documented in [BILLING.md](BILLING.md). Paid checkout remains disabled until Stripe is configured; access codes work independently of payment setup.
+
 The engine in [src/lib/prediction.ts](src/lib/prediction.ts) is a transparent personal calibration model.
 
 - Baseline (v2): all completed quizzes for the same exam contribute, with chronological rank-squared weights (1, 4, 9, 16, 25 for five quizzes). Each quiz's difficulty offset is weighted the same way: −10 (Easy), −6 (Medium), −2 (Hard), and −1 (Teacher-Level). There is no extra latest-score or improvement bonus. These are initial assumptions, not population-validated coefficients. New submissions use v2; saved historical forecasts remain unchanged.

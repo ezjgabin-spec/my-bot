@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Upload,
@@ -33,7 +34,7 @@ export default function CreatePage() {
 function CreateTest() {
   const router = useRouter();
   const search = useSearchParams();
-  const { state, connection, aiReady, refresh } = useWorkspace();
+  const { state, connection, aiReady, refresh, entitlement } = useWorkspace();
   const [examId, setExamId] = useState(search.get("exam") ?? "new");
   const [subject, setSubject] = useState(search.get("subject") ?? "Math");
   const [name, setName] = useState("");
@@ -527,6 +528,7 @@ function CreateTest() {
             </li>
           </ul>
           <ErrorMessage message={error} />
+          <p className="billing-consent">{entitlement?.family ? "Family access: unlimited generation and grading. No credits deducted." : <>AI interpretation, generation and written grading use your allowance based on provider usage. Unused reservations are returned. Free accounts receive one signup test, then one every 7 days, with $0.30 in weekly processing. <Link href="/pricing">View balances and pricing →</Link></>}</p>
           {stage && (
             <p className="progress-message" role="status">
               <LoaderCircle className="spin" size={18} />

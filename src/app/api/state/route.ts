@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { configurationStatus } from "@/lib/config";
 import { requireUser, apiError } from "@/lib/server";
 import { getState } from "@/lib/data";
+import { billingAccount } from "@/lib/billing";
+import { activePlan, hasPredictions } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +22,15 @@ export async function GET() {
     const user = await requireUser();
     stage = "workspace";
     const state = await getState(user.id);
+    const billing = await billingAccount();
+    const predictions = hasPredictions(billing);
     return NextResponse.json(
       {
         configured: true,
         aiReady: config.aiReady,
         user: "email" in user ? { email: user.email } : null,
-        state,
+        state: predictions ? state : { ...state, predictions: [] },
+        entitlement: { plan: activePlan(billing), family: billing.family, predictions },
       },
       { headers: { "Cache-Control": "no-store" } },
     );

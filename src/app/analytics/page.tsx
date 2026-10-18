@@ -11,9 +11,10 @@ import { StudySignals } from "@/components/study-signals";
 import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 export default function Analytics() {
-  const { state } = useWorkspace();
+  const { state, entitlement } = useWorkspace();
   const { appearance } = useAppearance();
   const [subject, setSubject] = useState("all");
+  if (entitlement && !entitlement.predictions) return <section className="panel form-panel prediction-lock"><h1>Unlock prediction analytics</h1><p>Your practice results are saved. A paid plan unlocks grade forecasts, confidence ranges and detailed progress analytics.</p><Link href="/pricing" className="button">Explore plans</Link></section>;
   const pairs = pairedOutcomes(state.predictions, state.grades, state.exams)
     .filter((p) => subject === "all" || p.prediction.subject === subject)
     .sort(

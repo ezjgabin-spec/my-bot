@@ -15,6 +15,7 @@ import type {
   Subject,
 } from "./types";
 import { AppError } from "./server";
+import type { BillingAccount, LedgerEntry, UsageReceipt } from "./plans";
 import { isCloud } from "./cloud";
 import { combineDocumentSummaries, MAX_INTERPRETER_SECTIONS } from "./material-interpreter";
 
@@ -32,12 +33,18 @@ export type StudyMaterial = {
 };
 
 export type LocalData = State & {
+  billingAccounts: BillingAccount[];
+  billingLedger: LedgerEntry[];
+  billingUsage: UsageReceipt[];
   version: 1;
   materials: StudyMaterial[];
   questions: (Question & { test_id: string })[];
 };
 
 export const emptyData = (): LocalData => ({
+  billingAccounts: [],
+  billingLedger: [],
+  billingUsage: [],
   version: 1,
   subjects: [],
   exams: [],
@@ -70,6 +77,10 @@ async function load(): Promise<LocalData> {
   await mkdir(dataDirectory(), { recursive: true });
   try {
     const parsed = JSON.parse(await readFile(dataFile(), "utf8")) as LocalData;
+    // Upgrade existing desktop files without rewriting or discarding study data.
+    parsed.billingAccounts ??= [];
+    parsed.billingLedger ??= [];
+    parsed.billingUsage ??= [];
     if (
       parsed.version !== 1 ||
       Object.keys(emptyData()).some(
