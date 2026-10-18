@@ -44,6 +44,7 @@ type Workspace = {
   connection: Connection;
   aiReady: boolean;
   email: string | null;
+  authMethod: "access" | "password";
   error: string;
   refresh: () => Promise<void>;
 };
@@ -71,6 +72,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<Connection>("loading");
   const [aiReady, setAiReady] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [authMethod, setAuthMethod] = useState<"access" | "password">("access");
   const [error, setError] = useState("");
   const [entitlement, setEntitlement] = useState<Workspace["entitlement"]>(null);
   const refresh = useCallback(async () => {
@@ -90,6 +92,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setAiReady(data.aiReady);
       setEntitlement(data.entitlement ?? null);
       setEmail(data.user?.email ?? null);
+      setAuthMethod(data.authMethod === "password" ? "password" : "access");
       setError("");
       setState(data.state);
       setConnection("ready");
@@ -103,7 +106,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
   return (
     <Context.Provider
-      value={{ state, connection, aiReady, email, error, refresh, entitlement }}
+      value={{ state, connection, aiReady, email, error, refresh, entitlement, authMethod }}
     >
       {children}
     </Context.Provider>
