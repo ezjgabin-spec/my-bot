@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { Target, ArrowUpRight, Sparkles } from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
+import { useAppearance } from "@/components/appearance-provider";
+import { AdvancedAnalytics } from "@/components/advanced-analytics";
 import { PageHeader, Empty, Badge } from "@/components/ui";
 import { PerformanceChart } from "@/components/charts";
 import { StudySignals } from "@/components/study-signals";
@@ -10,6 +12,7 @@ import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 export default function Analytics() {
   const { state } = useWorkspace();
+  const { appearance } = useAppearance();
   const [subject, setSubject] = useState("all");
   const pairs = pairedOutcomes(state.predictions, state.grades, state.exams)
     .filter((p) => subject === "all" || p.prediction.subject === subject)
@@ -59,6 +62,7 @@ export default function Analytics() {
     .filter((t) => t.earned / t.possible < 0.7)
     .sort((a, b) => a.earned / a.possible - b.earned / b.possible)
     .slice(0, 8);
+  if (appearance.dashboard === "advanced") return <AdvancedAnalytics />;
   return (
     <>
       <PageHeader

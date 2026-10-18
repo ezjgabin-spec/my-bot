@@ -25,6 +25,8 @@ import {
   Waves,
 } from "lucide-react";
 import type { State } from "@/lib/types";
+import type { CSSProperties } from "react";
+import { useAppearance, useAppearanceVariables } from "./appearance-provider";
 const empty: State = {
   subjects: [],
   exams: [],
@@ -117,6 +119,8 @@ const navigation = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { connection, aiReady } = useWorkspace();
+  const { appearance } = useAppearance();
+  const themeVariables = useAppearanceVariables();
   const [open, setOpen] = useState(false);
   const [motion, setMotion] = useState(true);
   const reducedMotion = useSyncExternalStore(
@@ -144,12 +148,39 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
   const animate =
     motion && !reducedMotion && !pathname.startsWith("/attempts/");
+  // Animate sections only as they enter the viewport. Reduced-motion users
+  // keep everything visible and receive no hover or scroll movement.
+  useEffect(() => {
+    if (!animate || typeof IntersectionObserver === "undefined") return;
+    const nodes = document.querySelectorAll<HTMLElement>(
+      ".main-area main .panel, .main-area main .stat-card, .main-area main .advanced-card, .main-area main .hero-card",
+    );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("in-view");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.06, rootMargin: "0px 0px -12px 0px" },
+    );
+    nodes.forEach((element) => {
+      element.classList.add("reveal-ready");
+      observer.observe(element);
+    });
+    return () => {
+      observer.disconnect();
+      nodes.forEach((element) => element.classList.remove("reveal-ready", "in-view"));
+    };
+  }, [pathname, animate, appearance.dashboard]);
   const cloud = process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1";
   if (pathname === "/login" && cloud)
     return <main className="login-wrap">{children}</main>;
   return (
     <MotionContext.Provider value={animate}>
-      <div className="app-shell" data-motion={animate ? "on" : "off"}>
+      <div className="app-shell" data-motion={animate ? "on" : "off"} data-dashboard={appearance.dashboard} data-palette={appearance.preset} style={themeVariables as CSSProperties}>
         <div className="ambient-field" aria-hidden="true">
           <i />
           <i />
@@ -178,7 +209,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               StudyPredict<span className="brand-ai">AI</span>
             </span>
           </Link>
-          <div className="workspace-label">EXPLORE YOUR POTENTIAL</div>
+          <div className="workspace-label">{appearance.dashboard === "advanced" ? "INTELLIGENCE WORKSPACE" : "EXPLORE YOUR POTENTIAL"}</div>
           <nav aria-label="Main navigation">
             {navigation.map(({ href, label, icon: Icon }) => (
               <Link
@@ -189,7 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-current={pathname === href ? "page" : undefined}
               >
                 <Icon size={19} />
-                {label}
+                {appearance.dashboard === "advanced" && href === "/" ? "Command center" : label}
               </Link>
             ))}
           </nav>

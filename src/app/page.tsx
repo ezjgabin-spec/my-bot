@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
+import { useAppearance } from "@/components/appearance-provider";
+import { AdvancedDashboard } from "@/components/advanced-dashboard";
 import { PageHeader, Empty, Badge } from "@/components/ui";
 import { PerformanceChart } from "@/components/charts";
 import { ForecastOrbit, StudySignals } from "@/components/study-signals";
@@ -20,6 +22,7 @@ import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 export default function Dashboard() {
   const { state } = useWorkspace();
+  const { appearance } = useAppearance();
   const [subjectFilter, setSubjectFilter] = useState("all");
   const completed = state.attempts
     .filter((a) => a.status === "completed")
@@ -80,6 +83,7 @@ export default function Dashboard() {
       tone: "orange",
     },
   ];
+  if (appearance.dashboard === "advanced") return <AdvancedDashboard />;
   return (
     <>
       <PageHeader
