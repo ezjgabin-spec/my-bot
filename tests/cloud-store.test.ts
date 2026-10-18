@@ -20,6 +20,7 @@ import { GET as stateRoute } from "../src/app/api/state/route";
 import { DELETE as deleteSubject } from "../src/app/api/subjects/[id]/route";
 import { DELETE as deleteTest } from "../src/app/api/tests/[id]/route";
 import { DELETE as deleteExam } from "../src/app/api/exams/[id]/route";
+import { POST as interpret } from "../src/app/api/materials/interpret/route";
 
 const context = new AsyncLocalStorage<string>();
 let platform: Awaited<ReturnType<typeof getPlatformProxy<CloudBindings>>>;
@@ -119,6 +120,52 @@ async function seed() {
   };
 }
 describe("Cloudflare D1 account isolation", () => {
+  it("protects interpretation and rejects oversized text before calling AI", async () => {
+    const request = (text: string, requestOrigin = origin.Origin) =>
+      new Request("https://study.example.com/api/materials/interpret", {
+        method: "POST",
+        headers: { ...origin, Origin: requestOrigin },
+        body: JSON.stringify({ text }),
+      });
+    expect((await interpret(request("notes"))).status).toBe(401);
+    expect(
+      (
+        await as("owner", () =>
+          interpret(request("notes", "https://other.example")),
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (await as("owner", () => interpret(request("x".repeat(16001))))).status,
+    ).toBe(400);
+    expect((await as("owner", () => interpret(request(" ")))).status).toBe(400);
+  });
+  it("reserves interpretation quota separately and enforces its limit", async () => {
+    vi.stubEnv("INTERPRETER_DAILY_USER_LIMIT", "2");
+    try {
+      await as("owner", () =>
+        withAiLock("owner", async () => "section 1", "interpretation"),
+      );
+      await as("owner", () =>
+        withAiLock("owner", async () => "section 2", "interpretation"),
+      );
+      await expect(
+        as("owner", () =>
+          withAiLock("owner", async () => "section 3", "interpretation"),
+        ),
+      ).rejects.toMatchObject({ status: 429 });
+      expect(
+        await as("owner", () => withAiLock("owner", async () => "test")),
+      ).toBe("test");
+      expect(
+        await as("brother", () =>
+          withAiLock("brother", async () => "section", "interpretation"),
+        ),
+      ).toBe("section");
+    } finally {
+      vi.stubEnv("INTERPRETER_DAILY_USER_LIMIT", "500");
+    }
+  });
   it("stores long Unicode notes in D1 without R2", async () => {
     await as("owner", async () => {
       const notes = "学习资料。".repeat(70000);

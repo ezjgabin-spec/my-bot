@@ -155,7 +155,7 @@ test("local app shows honest empty states and directs key entry to Settings", as
   await expect(
     page.getByRole("button", { name: "Generate practice test" }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Upload a file" }).click();
+  await page.getByRole("button", { name: "Interpret a file" }).click();
   await expect(page.locator('input[type="file"]')).toBeVisible();
   await page
     .getByRole("navigation")

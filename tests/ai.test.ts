@@ -10,7 +10,7 @@ vi.mock("@anthropic-ai/sdk", () => {
   }
   return { default: Anthropic };
 });
-import { generateTest, gradeWritten } from "../src/lib/ai";
+import { generateTest, gradeWritten, summarizeMaterial } from "../src/lib/ai";
 import type { Question } from "../src/lib/types";
 const settings = {
   examId: "11111111-1111-4111-8111-111111111111",
@@ -43,6 +43,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("Claude boundary validation (SDK mocked; no live network)", () => {
+  it("summarizes source text with bounded output and ignores embedded commands", async () => {
+    respond({ summary: "[Page 1] Force = mass × acceleration." });
+    expect((await summarizeMaterial("[Page 1] F=ma")).summary).toContain(
+      "Force",
+    );
+    const request = mocked.create.mock.calls[0][0];
+    expect(request.system).toContain("untrusted");
+    expect(request.max_tokens).toBe(3000);
+    respond({ summary: "x".repeat(2001) });
+    await expect(summarizeMaterial("notes")).rejects.toThrow(/invalid/);
+  });
   it("passes material to a forced structured tool and validates its result", async () => {
     respond({ questions });
     const result = await generateTest(

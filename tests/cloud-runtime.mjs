@@ -48,9 +48,10 @@ const runtime = new Miniflare(
         aiCalls++;
         const body = await request.json();
         const input = JSON.parse(body.messages[0].content);
-        assert.ok(input.studyMaterial.includes("Function"));
+        if (input.sourceText) assert.ok(input.sourceText.includes("Function"));
+        else assert.ok(input.studyMaterial.includes("Function"));
         const questions = Array.from(
-          { length: input.settings.count },
+          { length: input.settings?.count ?? 0 },
           (_, i) => ({
             kind: "multiple_choice",
             prompt: `Which expression is the composition in problem ${i + 1}?`,
@@ -72,7 +73,12 @@ const runtime = new Miniflare(
               type: "tool_use",
               id: "tool_test",
               name: "return_result",
-              input: { questions },
+              input: input.sourceText
+                ? {
+                    summary:
+                      "[Page 1] Function composition applies the inner function before the outer function. Keep the domain restrictions.",
+                  }
+                : { questions },
             },
           ],
           stop_reason: "tool_use",
@@ -142,6 +148,27 @@ try {
   assert.equal(initial.user.email, "owner@example.com");
   assert.equal(initial.aiReady, true);
   assert.deepEqual(initial.state.exams, []);
+  await api(
+    null,
+    "/api/materials/interpret",
+    { text: "Function composition" },
+    "POST",
+    401,
+  );
+  await api(
+    owner,
+    "/api/materials/interpret",
+    { text: "x".repeat(16001) },
+    "POST",
+    400,
+  );
+  const interpreted = await api(
+    owner,
+    "/api/materials/interpret",
+    { text: "[Page 1] Function composition applies the inner function first." },
+    "POST",
+  );
+  assert.ok(interpreted.summary.includes("Function composition"));
   const { exam } = await api(
     owner,
     "/api/exams",
@@ -180,7 +207,16 @@ try {
   );
   const largeMaterial = await largeUpload.json();
   assert.equal(largeUpload.status, 201, JSON.stringify(largeMaterial));
-  material = largeMaterial;
+  material = await api(
+    owner,
+    "/api/materials",
+    {
+      filename: "interpreted-study-guide.txt",
+      text: interpreted.summary,
+    },
+    "POST",
+    201,
+  );
   const { testId } = await api(
     owner,
     "/api/tests/generate",
@@ -196,7 +232,7 @@ try {
     "POST",
     201,
   );
-  assert.equal(aiCalls, 1);
+  assert.equal(aiCalls, 2);
   const { attemptId } = await api(owner, `/api/tests/${testId}/attempts`, {});
   const attempt = await api(owner, `/api/attempts/${attemptId}`);
   assert.equal(attempt.questions.length, 10);
@@ -238,9 +274,9 @@ try {
   assert.deepEqual(saved.grades, []);
   await api(owner, `/api/subjects/${saved.subjects[0].id}`, null, "DELETE");
   assert.deepEqual((await api(owner, "/api/state")).state.subjects, []);
-  assert.equal((await api(owner, "/api/materials")).materials.length, 3);
+  assert.equal((await api(owner, "/api/materials")).materials.length, 4);
   console.log(
-    "Cloudflare Worker passed: large PDF and DOCX uploads without R2, generation, grading, predictions, private accounts, and test/exam/subject deletion. External AI was simulated; no paid API calls made.",
+    "Cloudflare Worker passed: interpretation, saved summaries used for tests, PDF/DOCX uploads, grading, predictions, private accounts, and deletion. External AI was simulated; no paid API calls made.",
   );
 } finally {
   await runtime.dispose();

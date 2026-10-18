@@ -14,3 +14,5 @@ desktop/vendor-win/
 .open-next/
 .wrangler/
 .dev.vars*
+# Browser PDF worker is copied from the pinned dependency before builds.
+/public/pdfjs/

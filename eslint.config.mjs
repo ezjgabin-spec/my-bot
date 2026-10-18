@@ -18,5 +18,6 @@ export default defineConfig([
     "release/**",
     "desktop/staging/**",
     "desktop/vendor-win/**",
+    "public/pdfjs/**",
   ]),
 ]);

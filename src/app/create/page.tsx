@@ -2,7 +2,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Upload,
   Sparkles,
   FileText,
   Check,
@@ -12,7 +11,8 @@ import {
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { api, formatLabel } from "@/lib/client";
-import { MAX_FILE_BYTES, MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
+import { MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
+import { FileInterpreter } from "@/components/file-interpreter";
 import {
   SUBJECTS,
   DIFFICULTIES,
@@ -40,7 +40,6 @@ function CreateTest() {
   const [materialMode, setMaterialMode] = useState(
     search.get("material") ? "existing" : "notes",
   );
-  const [file, setFile] = useState<File | null>(null);
   const [materials, setMaterials] = useState<
     { id: string; filename: string }[]
   >([]);
@@ -83,6 +82,8 @@ function CreateTest() {
         await startTest(createdTest);
         return;
       }
+      if (materialMode === "file")
+        throw new Error("Read your file and save its study guide first.");
       let eid = examId;
       if (eid === "new") {
         setStage("Saving your school exam…");
@@ -97,29 +98,13 @@ function CreateTest() {
       let mid = materialId;
       if (!mid || materialMode !== "existing") {
         setStage("Reading your study material…");
-        let upload: RequestInit;
-        if (materialMode === "file") {
-          if (!file) throw new Error("Choose a study guide first.");
-          if (file.size > MAX_FILE_BYTES)
-            throw new Error(
-              "This file is too large. The maximum upload size is 99 MB.",
-            );
-          upload = {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/octet-stream",
-              "X-Filename": encodeURIComponent(file.name),
-            },
-            body: file,
-          };
-        } else
-          upload = {
-            method: "POST",
-            body: JSON.stringify({
-              filename: `${selectedSubject || "Study"} notes.txt`,
-              text: notes,
-            }),
-          };
+        const upload: RequestInit = {
+          method: "POST",
+          body: JSON.stringify({
+            filename: `${selectedSubject || "Study"} notes.txt`,
+            text: notes,
+          }),
+        };
         const result = await api<{ id: string; filename: string }>(
           "/api/materials",
           upload,
@@ -241,7 +226,7 @@ function CreateTest() {
             >
               {[
                 ["notes", "Paste notes"],
-                ["file", "Upload a file"],
+                ["file", "Interpret a file"],
                 ["existing", "Saved materials"],
               ].map(([value, label]) => (
                 <button
@@ -259,7 +244,6 @@ function CreateTest() {
                 Study notes
                 <textarea
                   required
-                  minLength={40}
                   maxLength={MAX_MATERIAL_CHARACTERS}
                   rows={9}
                   placeholder="Paste your study guide, class notes, vocabulary, or review questions here…"
@@ -267,32 +251,19 @@ function CreateTest() {
                   onChange={(e) => setNotes(e.target.value)}
                 />
                 <span className="helper">
-                  At least 40 characters. Questions stay grounded in this
-                  material.
+                  More study material usually creates better questions.
                 </span>
               </label>
             )}
             {materialMode === "file" && (
-              <label className="upload-zone">
-                <Upload size={28} />
-                <strong>{file ? file.name : "Choose your study guide"}</strong>
-                <span>PDF, Word (.docx), or TXT · up to 99 MB</span>
-                <span>PDFs: up to 500 pages · 500,000 characters of text</span>
-                <span>
-                  PDFs have no minimum file size and need at least one readable
-                  character. More study material usually creates better
-                  questions.
-                </span>
-                <input
-                  type="file"
-                  required
-                  accept=".pdf,.docx,.txt"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
-                <span>
-                  Scanned PDFs still need text recognition (OCR) first.
-                </span>
-              </label>
+              <FileInterpreter
+                aiReady={aiReady}
+                onSaved={(material) => {
+                  setMaterials((items) => [...items, material]);
+                  setMaterialId(material.id);
+                  setMaterialMode("existing");
+                }}
+              />
             )}
             {materialMode === "existing" && (
               <label>
@@ -440,7 +411,12 @@ function CreateTest() {
           )}
           <button
             className="button full"
-            disabled={!!stage || connection !== "ready" || !aiReady}
+            disabled={
+              !!stage ||
+              connection !== "ready" ||
+              !aiReady ||
+              materialMode === "file"
+            }
             type="submit"
           >
             {createdTest ? "Open saved test" : "Generate practice test"}

@@ -57,7 +57,7 @@ async function inspectDocx(buffer: Buffer) {
     });
   });
 }
-export function validateText(text: string, minimumCharacters = 40) {
+export function validateText(text: string, minimumCharacters = 1) {
   const cleaned = text
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
     .trim();
@@ -96,7 +96,14 @@ export async function extractDocument(filename: string, buffer: Buffer) {
     if (extension === "pdf") {
       if (!buffer.subarray(0, 5).equals(Buffer.from("%PDF-")))
         throw new AppError("The file does not contain a valid PDF header.");
-      const parser = new PDFParse({ data: buffer });
+      // PDF.js rejects Node Buffer instances. A plain view avoids copying the file.
+      const parser = new PDFParse({
+        data: new Uint8Array(
+          buffer.buffer,
+          buffer.byteOffset,
+          buffer.byteLength,
+        ),
+      });
       try {
         const info = await parser.getInfo();
         if (info.total > MAX_PDF_PAGES)

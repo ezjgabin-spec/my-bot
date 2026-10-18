@@ -2388,3 +2388,23 @@ details p {
     scroll-behavior: auto !important;
   }
 }
+.interpreter {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.interpreter progress {
+  width: 100%;
+  accent-color: var(--accent, #7c6cf2);
+}
+.interpreter-warning {
+  padding: 1rem;
+  border: 1px solid #e5ac4a;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.interpreter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

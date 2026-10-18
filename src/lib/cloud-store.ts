@@ -132,6 +132,7 @@ export async function cloudMaterialText(materialId: string) {
 export async function withCloudAiLock<T>(
   userId: string,
   run: () => Promise<T>,
+  purpose: "assessment" | "interpretation" = "assessment",
 ): Promise<T> {
   if ((await requireUser()).id !== userId)
     throw new AppError("Not allowed.", 403);
@@ -156,18 +157,26 @@ export async function withCloudAiLock<T>(
         ? parsed
         : fallback;
     };
-    const scopes = ["site", `user:${userId}`];
+    const interpreting = purpose === "interpretation";
+    const scopes = interpreting
+      ? ["interpretation:site", `interpretation:user:${userId}`]
+      : ["site", `user:${userId}`];
     const reserved = await DB.batch([
       DB.prepare(
-        "UPDATE ai_leases SET quota_reserved = 1 WHERE user_id = ? AND token = ? AND COALESCE((SELECT requests FROM ai_daily_usage WHERE day = ? AND scope = 'site'), 0) < ? AND COALESCE((SELECT requests FROM ai_daily_usage WHERE day = ? AND scope = ?), 0) < ?",
+        "UPDATE ai_leases SET quota_reserved = 1 WHERE user_id = ? AND token = ? AND COALESCE((SELECT requests FROM ai_daily_usage WHERE day = ? AND scope = ?), 0) < ? AND COALESCE((SELECT requests FROM ai_daily_usage WHERE day = ? AND scope = ?), 0) < ?",
       ).bind(
         userId,
         token,
         day,
-        limit(process.env.AI_DAILY_SITE_LIMIT, 30),
+        scopes[0],
+        interpreting
+          ? limit(process.env.INTERPRETER_DAILY_SITE_LIMIT, 1500)
+          : limit(process.env.AI_DAILY_SITE_LIMIT, 30),
         day,
         scopes[1],
-        limit(process.env.AI_DAILY_USER_LIMIT, 10),
+        interpreting
+          ? limit(process.env.INTERPRETER_DAILY_USER_LIMIT, 500)
+          : limit(process.env.AI_DAILY_USER_LIMIT, 10),
       ),
       ...scopes.map((scope) =>
         DB.prepare(
@@ -180,7 +189,9 @@ export async function withCloudAiLock<T>(
     ]);
     if (!reserved[0].meta.changes)
       throw new AppError(
-        "The daily AI request limit has been reached. Try again tomorrow (limits reset at midnight UTC). Your work is saved.",
+        interpreting
+          ? "The daily interpretation limit has been reached. Keep this tab open and resume after midnight UTC, or ask the owner to adjust the interpretation allowance."
+          : "The daily AI request limit has been reached. Try again tomorrow (limits reset at midnight UTC). Your work is saved.",
         429,
       );
     return await run();
