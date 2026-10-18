@@ -42,7 +42,7 @@ function CreateTest() {
   const [materialMode, setMaterialMode] = useState(
     search.get("material") ? "existing" : "notes",
   );
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [materials, setMaterials] = useState<
     { id: string; filename: string }[]
   >([]);
@@ -99,21 +99,38 @@ function CreateTest() {
       let mid = materialId;
       if (!mid || materialMode !== "existing") {
         setStage("Reading your study material…");
-        let upload: RequestInit;
+        let upload: RequestInit = {};
         if (materialMode === "file") {
-          if (!file) throw new Error("Choose a study guide first.");
-          if (file.size > MAX_FILE_BYTES)
-            throw new Error(
-              "This file is too large. The maximum upload size is 99 MB.",
+          if (!files.length) throw new Error("Choose study files first.");
+          if (files.length > 8) throw new Error("Select at most 8 files per test.");
+          const uploaded: string[] = [];
+          for (let i = 0; i < files.length; i++) {
+            const current = files[i];
+            if (current.size > MAX_FILE_BYTES)
+              throw new Error(`${current.name} exceeds the 99 MB file limit.`);
+            setStage(`Reading file ${i + 1} of ${files.length}: ${current.name}…`);
+            const result = await api<{ id: string }>("/api/materials", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/octet-stream",
+                "X-Filename": encodeURIComponent(current.name),
+              },
+              body: current,
+            });
+            uploaded.push(result.id);
+          }
+          if (uploaded.length === 1) {
+            mid = uploaded[0];
+          } else {
+            setStage("Combining your slideshows into one study guide…");
+            const combined = await api<{ id: string; filename: string }>(
+              "/api/materials/combine",
+              { method: "POST", body: JSON.stringify({ materialIds: uploaded }) },
             );
-          upload = {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/octet-stream",
-              "X-Filename": encodeURIComponent(file.name),
-            },
-            body: file,
-          };
+            mid = combined.id;
+          }
+          setMaterialId(mid);
+          setMaterialMode("existing");
         } else if (materialMode === "link") {
           upload = {
             method: "POST",
@@ -130,14 +147,15 @@ function CreateTest() {
               text: notes,
             }),
           };
-        const result = await api<{ id: string; filename: string }>(
-          "/api/materials",
-          upload,
-        );
-        mid = result.id;
-        setMaterialId(mid);
-        setMaterials((ms) => [...ms, result]);
-        setMaterialMode("existing");
+        if (materialMode !== "file" && !mid) {
+          const result = await api<{ id: string; filename: string }>(
+            "/api/materials", upload,
+          );
+          mid = result.id;
+          setMaterialId(mid);
+          setMaterials((ms) => [...ms, result]);
+          setMaterialMode("existing");
+        }
       }
       if (!mid) throw new Error("Choose a saved study material.");
       // Short materials finish immediately; long ones are processed across
@@ -303,8 +321,9 @@ function CreateTest() {
             {materialMode === "file" && (
               <label className="upload-zone">
                 <Upload size={28} />
-                <strong>{file ? file.name : "Choose your study guide"}</strong>
-                <span>PDF, Word (.docx), or TXT · up to 99 MB</span>
+                <strong>{files.length ? `${files.length} selected file(s)` : "Choose one or more study files"}</strong>
+                {files.map((item) => <span key={item.name}>{item.name}</span>)}
+                <span>PDF, PowerPoint (.pptx), Word (.docx), or TXT · up to 8 files</span>
                 <span>PDFs: up to 500 pages · 500,000 characters of text</span>
                 <span>
                   PDFs have no minimum file size and need at least one readable
@@ -314,8 +333,9 @@ function CreateTest() {
                 <input
                   type="file"
                   required
-                  accept=".pdf,.docx,.txt"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  multiple
+                  accept=".pdf,.pptx,.docx,.txt"
+                  onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
                 />
                 <span>
                   Scanned PDFs still need text recognition (OCR) first.
