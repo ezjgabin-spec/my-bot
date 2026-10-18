@@ -12,6 +12,8 @@ import {
 } from "recharts";
 import { useId } from "react";
 import { useMotion } from "./workspace";
+import { useAppearance } from "./appearance-provider";
+import { accentFor, appearanceColors } from "@/lib/appearance";
 export function PerformanceChart({
   data,
   actual = false,
@@ -25,6 +27,9 @@ export function PerformanceChart({
   actual?: boolean;
 }) {
   const animate = useMotion();
+  const { appearance } = useAppearance();
+  const accent = accentFor(appearance);
+  const palette = appearanceColors(appearance);
   const gradientId = useId().replaceAll(":", "");
   return (
     <div
@@ -43,7 +48,7 @@ export function PerformanceChart({
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#42e8df" stopOpacity={0.3} />
+              <stop offset="0%" stopColor={accent} stopOpacity={0.3} />
               <stop offset="100%" stopColor="#42e8df" stopOpacity={0} />
             </linearGradient>
           </defs>
@@ -84,7 +89,7 @@ export function PerformanceChart({
                 name="Predicted grade"
                 type="monotone"
                 dataKey="predicted"
-                stroke="#a99bff"
+                stroke={accent}
                 strokeWidth={2.5}
                 dot={{ r: 4 }}
               />
@@ -93,7 +98,7 @@ export function PerformanceChart({
                 name="Actual grade"
                 type="monotone"
                 dataKey="actual"
-                stroke="#55d9b0"
+                stroke={palette[1]}
                 strokeWidth={2.5}
                 dot={{ r: 4 }}
               />
@@ -105,10 +110,10 @@ export function PerformanceChart({
               name="Practice score"
               type="monotone"
               dataKey="practice"
-              stroke="#61e6e0"
+              stroke={accent}
               fill={`url(#${gradientId})`}
               strokeWidth={3}
-              dot={{ r: 4, fill: "#61e6e0", stroke: "#07131d", strokeWidth: 2 }}
+              dot={{ r: 4, fill: accent, stroke: "#07131d", strokeWidth: 2 }}
             />
           )}
         </ComposedChart>
