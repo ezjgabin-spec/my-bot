@@ -5,7 +5,7 @@ import { useWorkspace } from "./workspace";
 import { CodeRedemption } from "./code-redemption";
 import Link from "next/link";
 export function CloudSettings() {
-  const { aiReady, email, connection, error } = useWorkspace();
+  const { aiReady, email, connection, error, authMethod } = useWorkspace();
   return (
     <>
       <PageHeader
@@ -18,9 +18,13 @@ export function CloudSettings() {
       <section className="panel form-panel" style={{ maxWidth: 760 }}>
         <h2>Signed in as</h2>
         <p>{email || "Loading your account…"}</p>
-        <a className="button secondary" href="/cdn-cgi/access/logout">
-          Sign out
-        </a>
+        {authMethod === "password" ?
+          <button type="button" className="button secondary" onClick={async () => {
+            const response = await fetch("/api/auth/logout", { method: "POST" });
+            if (response.ok) window.location.assign("/login");
+          }}>Sign out</button> :
+          <a className="button secondary" href="/cdn-cgi/access/logout">Sign out</a>
+        }
         <h2 style={{ marginTop: 32 }}>Claude connection</h2>
         <p className="notice">
           {connection === "error"
