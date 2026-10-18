@@ -28,6 +28,7 @@ export async function GET() {
       {
         configured: true,
         aiReady: config.aiReady,
+        authMethod: process.env.PASSWORD_AUTH_ENABLED === "1" ? "password" : "access",
         user: "email" in user ? { email: user.email } : null,
         state: predictions ? state : { ...state, predictions: [] },
         entitlement: { plan: activePlan(billing), family: billing.family, predictions },
