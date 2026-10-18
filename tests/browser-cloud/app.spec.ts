@@ -41,14 +41,12 @@ test("Cloudflare serves the PDF worker and supports pausing, resuming, and downl
     });
   });
   await page.goto("/create");
-  await page.getByRole("button", { name: "Interpret a file" }).click();
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "chapters.pdf",
-      mimeType: "application/pdf",
-      buffer: makePdf({ pages: 220 }),
-    });
+  await page.getByRole("button", { name: "Interpret large file" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "chapters.pdf",
+    mimeType: "application/pdf",
+    buffer: makePdf({ pages: 220 }),
+  });
   await page.getByRole("button", { name: "Read file", exact: true }).click();
   await page
     .getByRole("button", { name: "Summarize file", exact: true })

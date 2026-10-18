@@ -44,12 +44,12 @@ test("dashboard uses actual study activity and respects the motion preference", 
   );
   await page.goto("/");
   await expect(
-    page.getByRole("meter", { name: "Precalculus average practice score" }),
+    page.getByRole("meter", { name: "Precalculus average 85%" }),
   ).toHaveAttribute("aria-valuenow", "85");
-  await expect(page.locator(".activity-map .level-1")).toHaveCount(1);
-  await expect(page.locator(".signal-strip")).toContainText(
-    "10 minutes practiced",
-  );
+  await expect(page.locator('.telemetry-matrix i[data-level="1"]')).toHaveCount(1);
+  await expect(
+    page.locator(".telemetry-line").filter({ hasText: "active days" }),
+  ).toContainText("1");
   await page.getByRole("button", { name: "Ambient animations" }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute(
     "data-motion",
@@ -61,7 +61,8 @@ test("dashboard uses actual study activity and respects the motion preference", 
   ).toHaveAttribute("aria-pressed", "false");
   expect(
     await page
-      .locator(".ring-a")
+      .locator(".telemetry-bars i")
+      .first()
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("none");
 });
@@ -74,7 +75,8 @@ test("system reduced motion stops ambient animation", async ({ page }) => {
   );
   expect(
     await page
-      .locator(".ring-a")
+      .locator(".telemetry-bars i")
+      .first()
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("none");
 });
@@ -145,7 +147,7 @@ test("local app shows honest empty states and directs key entry to Settings", as
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Make your next exam your best." }),
+    page.getByRole("heading", { name: "Turn practice into progress." }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Settings" })).toBeVisible();
   await page
@@ -155,14 +157,14 @@ test("local app shows honest empty states and directs key entry to Settings", as
   await expect(
     page.getByRole("button", { name: "Generate practice test" }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Interpret a file" }).click();
+  await page.getByRole("button", { name: "Interpret large file" }).click();
   await expect(page.locator('input[type="file"]')).toBeVisible();
   await page
     .getByRole("navigation")
     .getByRole("link", { name: "Prediction analytics" })
     .click();
   await expect(
-    page.getByText("No paired results yet.", { exact: false }),
+    page.getByText("No paired outcomes yet.", { exact: false }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -188,7 +190,7 @@ test("mobile navigation works without horizontal overflow", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Make your next exam your best." }),
+    page.getByRole("heading", { name: "Turn practice into progress." }),
   ).toBeVisible();
   expect(
     await page.evaluate(

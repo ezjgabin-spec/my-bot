@@ -57,6 +57,97 @@ async function inspectDocx(buffer: Buffer) {
     });
   });
 }
+// PPTX slides contain readable DrawingML text within a ZIP container.
+// Extract all slides in numerical order without running macros or embedded files.
+async function extractPptx(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(buffer, { lazyEntries: true }, (error, zip) => {
+      if (error || !zip)
+        return reject(new AppError("Invalid PowerPoint file."));
+      const slides = new Map<number, string>();
+      let total = 0;
+      let entries = 0;
+      let finished = false;
+      const fail = (message: string) => {
+        if (finished) return;
+        finished = true;
+        zip.close();
+        reject(new AppError(message));
+      };
+      zip.on("error", () => fail("Could not read PowerPoint file."));
+      zip.on("entry", (entry) => {
+        entries++;
+        total += entry.uncompressedSize;
+        if (entries > 1800 || total > 35_000_000)
+          return fail("PowerPoint expands beyond the supported size.");
+        const match = /^ppt\/slides\/slide([1-9]\d*)\.xml$/.exec(
+          entry.fileName,
+        );
+        if (!match) return zip.readEntry();
+        if (entry.uncompressedSize > 2_000_000 || slides.size >= 500)
+          return fail("PowerPoint slide limit exceeded.");
+        zip.openReadStream(entry, (streamError, stream) => {
+          if (streamError || !stream)
+            return fail("Could not read PowerPoint slide.");
+          const parts: Buffer[] = [];
+          let length = 0;
+          stream.on("error", () => fail("Could not read PowerPoint slide."));
+          stream.on("data", (part: Buffer) => {
+            length += part.length;
+            if (length > 2_000_000)
+              return fail("PowerPoint slide is too large.");
+            parts.push(part);
+          });
+          stream.on("end", () => {
+            if (finished) return;
+            const xml = Buffer.concat(parts).toString("utf8");
+            const texts = [
+              ...xml.matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>/g),
+            ].map((item) =>
+              item[1].replace(
+                /&(?:amp|lt|gt|quot|apos|#\d+|#x[\da-f]+);/gi,
+                (entity) => {
+                  const named: Record<string, string> = {
+                    "&amp;": "&",
+                    "&lt;": "<",
+                    "&gt;": ">",
+                    "&quot;": '"',
+                    "&apos;": "'",
+                  };
+                  if (named[entity]) return named[entity];
+                  const point = entity.startsWith("&#x")
+                    ? parseInt(entity.slice(3, -1), 16)
+                    : parseInt(entity.slice(2, -1), 10);
+                  return Number.isInteger(point) &&
+                    point > 0 &&
+                    point <= 0x10ffff
+                    ? String.fromCodePoint(point)
+                    : entity;
+                },
+              ),
+            );
+            slides.set(Number(match[1]), texts.join(" "));
+            zip.readEntry();
+          });
+        });
+      });
+      zip.on("end", () => {
+        if (finished) return;
+        finished = true;
+        if (!slides.size)
+          return reject(new AppError("No readable slides were found."));
+        resolve(
+          [...slides]
+            .sort((a, b) => a[0] - b[0])
+            .map(([num, text]) => `Slide ${num}: ${text}`)
+            .join("\n\n"),
+        );
+      });
+      zip.readEntry();
+    });
+  });
+}
+
 export function validateText(text: string, minimumCharacters = 1) {
   const cleaned = text
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
@@ -117,6 +208,13 @@ export async function extractDocument(filename: string, buffer: Buffer) {
         await parser.destroy();
       }
     }
+    if (extension === "pptx") {
+      return {
+        text: validateText(await extractPptx(buffer), 1),
+        mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        extension,
+      };
+    }
     if (extension === "docx") {
       await inspectDocx(buffer);
       return {
@@ -126,7 +224,7 @@ export async function extractDocument(filename: string, buffer: Buffer) {
       };
     }
     throw new AppError(
-      "Supported files: PDF, DOCX, and TXT. For older .doc files, save as .docx first.",
+      "Supported files: PDF, PPTX, DOCX, and TXT. For older .doc files, save as .docx first.",
     );
   } catch (error) {
     if (error instanceof AppError) throw error;

@@ -185,6 +185,51 @@ describe("Cloudflare D1 account isolation", () => {
       ).toBe(notes);
     });
   });
+  it("caches the complete interpreter guide privately and reuses it", async () => {
+    const owner = await as("owner", seed);
+    const brother = await as("brother", seed);
+    await as("owner", async () => {
+      await store.cacheLocalMaterialInterpretation(
+        owner.materialId,
+        "[Document section 1 of 2]\\nDefinitions.\\n\\n[Document section 2 of 2]\\nFormulas.",
+        2,
+      );
+      const context = await store.getGenerationContext(owner.examId, owner.materialId);
+      expect(context.interpreted).toContain("section 2 of 2");
+      expect(context.material).toContain("acceleration");
+    });
+    await as("brother", async () => {
+      expect((await store.getGenerationContext(brother.examId, brother.materialId)).interpreted).toBeNull();
+      await expect(store.cacheLocalMaterialInterpretation(owner.materialId, "other", 1)).rejects.toMatchObject({ status: 404 });
+    });
+  });
+  it("resumes per-section PDF summarization and keeps drafts private", async () => {
+    const owner = await as("owner", seed);
+    const brother = await as("brother", seed);
+    const first = await as("owner", () =>
+      store.saveLocalInterpretedSection(owner.materialId, 0, 2, "Definitions and context"),
+    );
+    expect(first).toEqual({ ready: false, completed: 1, total: 2 });
+    expect(
+      (await as("owner", store.readLocalData)).materials[0].interpreted_parts,
+    ).toHaveLength(1);
+    await expect(
+      as("brother", () =>
+        store.saveLocalInterpretedSection(owner.materialId, 1, 2, "Private summary"),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(
+      (await as("brother", store.getGenerationContext.bind(null, brother.examId, brother.materialId))).interpreted,
+    ).toBeNull();
+    const last = await as("owner", () =>
+      store.saveLocalInterpretedSection(owner.materialId, 1, 2, "Worked examples"),
+    );
+    expect(last.ready).toBe(true);
+    expect((await as("owner", store.getGenerationContext.bind(null, owner.examId, owner.materialId))).interpreted)
+      .toContain("[Document section 2 of 2]");
+    expect((await as("owner", store.readLocalData)).materials[0].interpreted_parts)
+      .toBeUndefined();
+  });
   it("authorizes deletion and cascades D1 records without affecting other accounts", async () => {
     const owner = await as("owner", seed);
     await as("brother", seed);

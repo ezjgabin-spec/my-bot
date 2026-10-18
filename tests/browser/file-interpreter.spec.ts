@@ -26,7 +26,7 @@ async function openInterpreter(page: Page) {
     route.fulfill({ json: { materials: [] } }),
   );
   await page.goto("/create");
-  await page.getByRole("button", { name: "Interpret a file" }).click();
+  await page.getByRole("button", { name: "Interpret large file" }).click();
 }
 
 test("interprets a PDF over 100 MB and 500 pages, retries only the failed section, and saves edited notes", async ({
@@ -118,26 +118,22 @@ test("reads Word and text locally and reports a PDF with no readable content", a
     "tests/fixtures/study-guide.txt",
   ]) {
     if (path.endsWith(".txt")) {
-      await page
-        .locator('input[type="file"]')
-        .setInputFiles({
-          name: "notes.txt",
-          mimeType: "text/plain",
-          buffer: Buffer.from("Force equals mass times acceleration."),
-        });
+      await page.locator('input[type="file"]').setInputFiles({
+        name: "notes.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("Force equals mass times acceleration."),
+      });
     } else await page.locator('input[type="file"]').setInputFiles(path);
     await page.getByRole("button", { name: "Read file", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "Summarize file" }),
     ).toBeVisible();
   }
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "blank.pdf",
-      mimeType: "application/pdf",
-      buffer: makePdf({ pageText: "" }),
-    });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "blank.pdf",
+    mimeType: "application/pdf",
+    buffer: makePdf({ pageText: "" }),
+  });
   await page.getByRole("button", { name: "Read file", exact: true }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "No readable text" }),

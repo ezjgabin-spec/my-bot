@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Upload,
   Sparkles,
   FileText,
   Check,
@@ -11,7 +12,8 @@ import {
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { api, formatLabel } from "@/lib/client";
-import { MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
+import { MAX_FILE_BYTES, MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
+import { MAX_INTERPRETER_SECTIONS } from "@/lib/material-interpreter";
 import { FileInterpreter } from "@/components/file-interpreter";
 import {
   SUBJECTS,
@@ -37,9 +39,11 @@ function CreateTest() {
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [notesLink, setNotesLink] = useState("");
   const [materialMode, setMaterialMode] = useState(
     search.get("material") ? "existing" : "notes",
   );
+  const [files, setFiles] = useState<File[]>([]);
   const [materials, setMaterials] = useState<
     { id: string; filename: string }[]
   >([]);
@@ -82,7 +86,7 @@ function CreateTest() {
         await startTest(createdTest);
         return;
       }
-      if (materialMode === "file")
+      if (materialMode === "interpret")
         throw new Error("Read your file and save its study guide first.");
       let eid = examId;
       if (eid === "new") {
@@ -98,25 +102,93 @@ function CreateTest() {
       let mid = materialId;
       if (!mid || materialMode !== "existing") {
         setStage("Reading your study material…");
-        const upload: RequestInit = {
-          method: "POST",
-          body: JSON.stringify({
-            filename: `${selectedSubject || "Study"} notes.txt`,
-            text: notes,
-          }),
-        };
-        const result = await api<{ id: string; filename: string }>(
-          "/api/materials",
-          upload,
-        );
-        mid = result.id;
-        setMaterialId(mid);
-        setMaterials((ms) => [...ms, result]);
-        setMaterialMode("existing");
+        let upload: RequestInit = {};
+        if (materialMode === "file") {
+          if (!files.length) throw new Error("Choose study files first.");
+          if (files.length > 8)
+            throw new Error("Select at most 8 files per test.");
+          const uploaded: string[] = [];
+          for (let i = 0; i < files.length; i++) {
+            const current = files[i];
+            if (current.size > MAX_FILE_BYTES)
+              throw new Error(`${current.name} exceeds the 99 MB file limit.`);
+            setStage(
+              `Reading file ${i + 1} of ${files.length}: ${current.name}…`,
+            );
+            const result = await api<{ id: string }>("/api/materials", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/octet-stream",
+                "X-Filename": encodeURIComponent(current.name),
+              },
+              body: current,
+            });
+            uploaded.push(result.id);
+          }
+          if (uploaded.length === 1) {
+            mid = uploaded[0];
+          } else {
+            setStage("Combining your slideshows into one study guide…");
+            const combined = await api<{ id: string; filename: string }>(
+              "/api/materials/combine",
+              {
+                method: "POST",
+                body: JSON.stringify({ materialIds: uploaded }),
+              },
+            );
+            mid = combined.id;
+          }
+          setMaterialId(mid);
+          setMaterialMode("existing");
+        } else if (materialMode === "link") {
+          upload = {
+            method: "POST",
+            body: JSON.stringify({
+              filename: "Linked study notes.txt",
+              sourceUrl: notesLink,
+            }),
+          };
+        } else
+          upload = {
+            method: "POST",
+            body: JSON.stringify({
+              filename: `${selectedSubject || "Study"} notes.txt`,
+              text: notes,
+            }),
+          };
+        if (materialMode !== "file" && !mid) {
+          const result = await api<{ id: string; filename: string }>(
+            "/api/materials",
+            upload,
+          );
+          mid = result.id;
+          setMaterialId(mid);
+          setMaterials((ms) => [...ms, result]);
+          setMaterialMode("existing");
+        }
       }
       if (!mid) throw new Error("Choose a saved study material.");
+      // Short materials finish immediately; long ones are processed across
+      // requests with progress saved, so a reload can resume where it left off.
+      for (let step = 0; step <= MAX_INTERPRETER_SECTIONS; step++) {
+        if (step === 0)
+          setStage("Checking whether your notes need interpretation…");
+        const progress = await api<{
+          ready: boolean;
+          completed: number;
+          total: number;
+        }>(`/api/materials/${mid}/interpret`, { method: "POST" });
+        if (progress.ready) break;
+        setStage(
+          `Claude summarized section ${progress.completed} of ${progress.total}. Preparing the next section…`,
+        );
+        if (step === MAX_INTERPRETER_SECTIONS)
+          throw new Error(
+            "The document interpreter did not finish. Retry to resume.",
+          );
+      }
       setStage(
-        "Claude is building your questions and rubrics. This can take a minute or two…",
+        "Claude is interpreting every section of large documents, then building your questions. Longer PDFs may take several minutes…",
       );
       const result = await api<{ testId: string }>("/api/tests/generate", {
         method: "POST",
@@ -226,7 +298,9 @@ function CreateTest() {
             >
               {[
                 ["notes", "Paste notes"],
-                ["file", "Interpret a file"],
+                ["file", "Upload files"],
+                ["interpret", "Interpret large file"],
+                ["link", "Paste a link"],
                 ["existing", "Saved materials"],
               ].map(([value, label]) => (
                 <button
@@ -256,6 +330,38 @@ function CreateTest() {
               </label>
             )}
             {materialMode === "file" && (
+              <label className="upload-zone">
+                <Upload size={28} />
+                <strong>
+                  {files.length
+                    ? `${files.length} selected file(s)`
+                    : "Choose one or more study files"}
+                </strong>
+                {files.map((item) => (
+                  <span key={item.name}>{item.name}</span>
+                ))}
+                <span>
+                  PDF, PowerPoint (.pptx), Word (.docx), or TXT · up to 8 files
+                </span>
+                <span>PDFs: up to 500 pages · 500,000 characters of text</span>
+                <span>
+                  PDFs have no minimum file size and need at least one readable
+                  character. More study material usually creates better
+                  questions.
+                </span>
+                <input
+                  type="file"
+                  required
+                  multiple
+                  accept=".pdf,.pptx,.docx,.txt"
+                  onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                />
+                <span>
+                  Scanned PDFs still need text recognition (OCR) first.
+                </span>
+              </label>
+            )}
+            {materialMode === "interpret" && (
               <FileInterpreter
                 aiReady={aiReady}
                 onSaved={(material) => {
@@ -264,6 +370,24 @@ function CreateTest() {
                   setMaterialMode("existing");
                 }}
               />
+            )}
+            {materialMode === "link" && (
+              <label className="notes-label">
+                Public notes link
+                <input
+                  type="url"
+                  required
+                  maxLength={2048}
+                  placeholder="https://docs.google.com/document/d/..."
+                  value={notesLink}
+                  onChange={(e) => setNotesLink(e.target.value)}
+                />
+                <span className="helper">
+                  Paste a publicly viewable Google Doc or a public GitHub raw
+                  TXT/Markdown link. Private Canvas, Classroom, or school
+                  assignments still need an authorized connection or upload.
+                </span>
+              </label>
             )}
             {materialMode === "existing" && (
               <label>
@@ -415,7 +539,7 @@ function CreateTest() {
               !!stage ||
               connection !== "ready" ||
               !aiReady ||
-              materialMode === "file"
+              materialMode === "interpret"
             }
             type="submit"
           >

@@ -1,5 +1,6 @@
 "use client";
 import { PageHeader } from "./ui";
+import { AppearanceSettings } from "./appearance-settings";
 import { useWorkspace } from "./workspace";
 export function CloudSettings() {
   const { aiReady, email, connection, error } = useWorkspace();
@@ -10,6 +11,7 @@ export function CloudSettings() {
         title="Your space. Your progress."
         description="Your notes, practice tests, and grades are private to your signed-in account."
       />
+      <AppearanceSettings />
       <section className="panel form-panel" style={{ maxWidth: 760 }}>
         <h2>Signed in as</h2>
         <p>{email || "Loading your account…"}</p>
