@@ -62,11 +62,19 @@ export function accentFor(settings: Appearance): string {
     return appearanceColors(settings)[2];
   return appearanceColors(settings)[0];
 }
+function lightness(hex: string) {
+  const rgb = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255)
+    .map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+}
 export function appearanceVariables(settings: Appearance) {
   const [a, b, c] = appearanceColors(settings);
   const accent = accentFor(settings);
+  const contrast = [a, b, c].reduce((sum, color) => sum + lightness(color), 0) / 3 > 0.28
+    ? "#101629" : "#f8faff";
   return {
     "--accent": accent,
+    "--accent-contrast": contrast,
     "--accent-a": a,
     "--accent-b": b,
     "--accent-c": c,
