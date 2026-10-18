@@ -472,6 +472,9 @@ function Results({ view }: { view: AttemptView }) {
               <details>
                 <summary>How this forecast was made</summary>
                 <p className="helper">
+                  {p.features.weightedAverage !== undefined && (
+                    <>Recent-weighted practice: {percent(p.features.weightedAverage)} · </>
+                  )}
                   Latest practice: {percent(p.features.latest)} · Average:{" "}
                   {percent(p.features.average)} · Improvement:{" "}
                   {p.features.improvement.toFixed(1)} pp ·{" "}

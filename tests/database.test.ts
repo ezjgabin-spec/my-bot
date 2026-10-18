@@ -76,6 +76,17 @@ async function completed() {
   return id;
 }
 describe("local persistent practice workflow", () => {
+  it("loads prior questions for repeat tests and reused materials, excluding unrelated exams", async () => {
+    const data = await store.readLocalData();
+    const materialId = data.tests[0].material_id;
+    const context = await store.getGenerationContext(exam, materialId);
+    expect(context.previousQuestions).toEqual(questions.map(({ prompt, topic }) => ({ prompt, topic })));
+    const otherExam = (await store.createLocalExam({ subject: "Chemistry", name: "Atoms" })).id;
+    expect((await store.getGenerationContext(otherExam, materialId)).previousQuestions).toHaveLength(2);
+    const otherMaterial = crypto.randomUUID();
+    await store.saveLocalMaterial({ id: otherMaterial, filename: "other.txt", mime_type: "text/plain", extracted_text: "Atoms." });
+    expect((await store.getGenerationContext(otherExam, otherMaterial)).previousQuestions).toEqual([]);
+  });
   it("deletes a test and results while keeping its exam, grade, and library", async () => {
     const id = await completed();
     await store.recordLocalGrade(exam, 85);

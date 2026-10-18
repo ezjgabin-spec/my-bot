@@ -260,7 +260,16 @@ export async function getGenerationContext(examId: string, materialId: string) {
     );
   const subject = data.subjects.find((item) => item.id === exam.subject_id);
   if (!subject) throw new AppError("The exam subject could not be found.", 500);
+  const relatedTests = data.tests
+    .filter((test) => test.material_id === materialId || test.exam_id === examId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 5);
+  const previousQuestions = relatedTests.flatMap((test) =>
+    data.questions.filter((question) => question.test_id === test.id)
+      .map(({ prompt, topic }) => ({ prompt, topic })),
+  );
   return {
+    previousQuestions,
     subject: subject.name,
     interpreted: material.interpreted_text ?? null,
     material: isCloud()

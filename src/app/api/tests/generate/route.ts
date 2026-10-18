@@ -24,6 +24,7 @@ export async function POST(request: Request) {
         context.subject,
         context.interpreted ?? context.material,
         !!context.interpreted,
+        context.previousQuestions,
       ),
     );
     return NextResponse.json(

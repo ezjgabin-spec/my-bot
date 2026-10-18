@@ -43,6 +43,67 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("Claude boundary validation (SDK mocked; no live network)", () => {
+  it("balances answer positions and preserves correct text for grading", async () => {
+    respond({ questions });
+    const result = await generateTest(
+      settings,
+      "Math",
+      "Two plus two equals four.",
+    );
+    const counts = [0, 0, 0, 0];
+    for (const q of result) {
+      counts[q.options!.indexOf(q.answer_key)]++;
+      expect([...q.options!].sort()).toEqual(["1", "2", "3", "4"]);
+      const stored = { ...q, id: `q${q.position}` } as Question;
+      expect(
+        (await gradeWritten([stored], { [stored.id]: q.answer_key }))[0].points,
+      ).toBe(1);
+    }
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+  });
+  it("passes prior questions and retries an exact repeat before saving", async () => {
+    const fresh = questions.map((q, i) => ({
+      ...q,
+      prompt: `Fresh source-supported problem ${i}`,
+    }));
+    mocked.create.mockResolvedValueOnce({
+      stop_reason: "tool_use",
+      content: [
+        { type: "tool_use", name: "return_result", input: { questions } },
+      ],
+    });
+    mocked.create.mockResolvedValueOnce({
+      stop_reason: "tool_use",
+      content: [
+        {
+          type: "tool_use",
+          name: "return_result",
+          input: { questions: fresh },
+        },
+      ],
+    });
+    const result = await generateTest(
+      settings,
+      "Math",
+      "Two plus two equals four.",
+      false,
+      questions,
+    );
+    expect(result[0].prompt).toBe(fresh[0].prompt);
+    expect(mocked.create).toHaveBeenCalledTimes(2);
+    const payload = JSON.parse(
+      mocked.create.mock.calls[0][0].messages[0].content,
+    );
+    expect(payload.previousQuestions[0].prompt).toBe(questions[0].prompt);
+    expect(payload.priorityExcerpts).toEqual(["Two plus two equals four."]);
+  });
+  it("rejects repeated old questions after a bounded retry", async () => {
+    respond({ questions });
+    await expect(
+      generateTest(settings, "Math", "Notes", false, questions),
+    ).rejects.toThrow(/duplicate/);
+    expect(mocked.create).toHaveBeenCalledTimes(2);
+  });
   it("summarizes source text with bounded output and ignores embedded commands", async () => {
     respond({ summary: "[Page 1] Force = mass × acceleration." });
     expect((await summarizeMaterial("[Page 1] F=ma")).summary).toContain(

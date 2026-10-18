@@ -77,6 +77,46 @@ const grades: ActualGrade[] = [
   { exam_id: "e", grade: 93, recorded_at: "2026-09-25T12:00:00Z" },
 ];
 describe("personal grade prediction", () => {
+  function multiQuiz(scores: number[]) {
+    return attemptFeatures(
+      scores.map((score, i) => ({
+        id: String(i),
+        test_id: "t",
+        status: "completed",
+        score,
+        completed_at: new Date(Date.UTC(2026, 8, i + 1)).toISOString(),
+      })) as Attempt[],
+      [
+        {
+          id: "t",
+          difficulty: "Medium",
+          format: "mixed",
+          question_count: 20,
+          topics: ["Functions"],
+        },
+      ] as PracticeTest[],
+    );
+  }
+  it("puts two early 60s followed by three strong 90s in the mid-to-high 80s", () => {
+    const f = multiQuiz([60, 65, 92, 94, 96]);
+    expect(predict([], f).predicted).toBeGreaterThanOrEqual(85);
+    expect(predict([], f).predicted).toBeLessThan(90);
+    expect(f.attemptCount).toBe(5);
+  });
+  it("retains every quiz while favoring recent scores and softening a bad last quiz", () => {
+    const scores = [60, 65, 92, 94, 96];
+    const base = multiQuiz(scores).weightedAverage!;
+    const changes = scores.map(
+      (_, i) =>
+        multiQuiz(scores.map((score, j) => score + (i === j ? 1 : 0)))
+          .weightedAverage! - base,
+    );
+    expect(changes.every((change) => change > 0)).toBe(true);
+    expect(changes).toEqual([...changes].sort((a, b) => a - b));
+    expect(
+      predict([], multiQuiz([94, 94, 94, 94, 60])).predicted,
+    ).toBeGreaterThan(70);
+  });
   it("uses an honest conservative cold start with a wide range", () => {
     const p = predict();
     expect(p.predicted).toBe(89);

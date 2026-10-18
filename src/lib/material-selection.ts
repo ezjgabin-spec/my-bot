@@ -1,4 +1,5 @@
 import { MAX_AI_MATERIAL_BYTES } from "./material-limits";
+import { shuffled } from "./test-variety";
 
 // Keep the original document intact. Send a bounded, explicitly labelled
 // selection to Claude when a document exceeds one request's context budget.
@@ -24,16 +25,17 @@ export function selectStudyMaterial(text: string, focusTopics: string[]) {
     start = end;
   }
   const terms = focusTopics.map((t) => t.trim().toLowerCase()).filter(Boolean);
-  const ranked = chunks
-    .map((chunk, index) => ({
-      index,
-      score: terms.reduce(
-        (score, term) => score + (chunk.toLowerCase().includes(term) ? 1 : 0),
-        0,
-      ),
-    }))
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score || a.index - b.index);
+  const ranked = shuffled(
+    chunks
+      .map((chunk, index) => ({
+        index,
+        score: terms.reduce(
+          (score, term) => score + (chunk.toLowerCase().includes(term) ? 1 : 0),
+          0,
+        ),
+      }))
+      .filter((x) => x.score > 0),
+  ).sort((a, b) => b.score - a.score);
   const selected = new Set<number>();
   let bytes = 0;
   function add(index: number, budget = MAX_AI_MATERIAL_BYTES) {
@@ -51,13 +53,8 @@ export function selectStudyMaterial(text: string, focusTopics: string[]) {
   for (let i = 0; i < slots; i++)
     add(Math.round((i * (chunks.length - 1)) / (slots - 1)));
   for (const match of ranked) add(match.index);
-  // Interleave the remaining sections instead of taking only the beginning.
-  for (
-    let stride = Math.ceil(chunks.length / 2);
-    stride >= 1;
-    stride = Math.floor(stride / 2)
-  )
-    for (let i = 0; i < chunks.length; i += stride) add(i);
+  // Fill with a fresh sample so repeat quizzes do not always see the same sections.
+  for (const index of shuffled(chunks.map((_, index) => index))) add(index);
   return {
     text: [...selected]
       .sort((a, b) => a - b)

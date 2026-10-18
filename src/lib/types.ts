@@ -104,6 +104,8 @@ export type ActualGrade = {
   recorded_at: string;
 };
 export type PredictionFeatures = {
+  weightedAverage?: number;
+  weightedDifficultyOffset?: number;
   latest: number;
   average: number;
   improvement: number;

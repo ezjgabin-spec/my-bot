@@ -54,11 +54,13 @@ The local study engine binds only to loopback, uses a random launch-specific ses
 
 The engine in [src/lib/prediction.ts](src/lib/prediction.ts) is a transparent personal calibration model.
 
-- Baseline: 65% latest practice score + 35% average + improvement bounded to ±3 points, with difficulty offsets of −10 (Easy), −6 (Medium), −2 (Hard), and −1 (Teacher-Level). These are initial assumptions, not population-validated coefficients.
+- Baseline (v2): all completed quizzes for the same exam contribute, with chronological rank-squared weights (1, 4, 9, 16, 25 for five quizzes). Each quiz's difficulty offset is weighted the same way: −10 (Easy), −6 (Medium), −2 (Hard), and −1 (Teacher-Level). There is no extra latest-score or improvement bonus. These are initial assumptions, not population-validated coefficients. New submissions use v2; saved historical forecasts remain unchanged.
 - Calibration uses one school outcome per exam: its latest saved forecast before the actual grade was entered, also respecting the exam date when known. It excludes the target exam and future outcomes. Correcting an actual grade never rewrites past predictions.
 - Residuals use recency, subject, difficulty, format, and topic similarity. Three units of prior weight shrink adjustments toward the baseline; individual residuals are capped at ±20 points.
 - Ranges use errors from original saved forecasts and a sparse-data penalty. They are heuristic ranges, not statistically calibrated confidence intervals. Short tests receive additional uncertainty.
 - Analytics reports prediction error in percentage points. Improvement trends require ten paired school outcomes; empty states remain empty until enough real data exists.
+
+Repeat test generation includes question history from the last five tests for the same exam or saved material, with randomly chosen source excerpts to encourage fresh coverage. The model is instructed to avoid paraphrases while staying within the source and requested focus. Exact repeats get one automatic retry, then fail without saving if still duplicated; semantic novelty is not guaranteed on narrow material. Multiple-choice answer positions are balanced across A–D and randomly ordered before saving, with distractors shuffled and answer text preserved for grading.
 
 ## Development and builds
 

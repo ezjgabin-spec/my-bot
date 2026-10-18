@@ -8,7 +8,8 @@ import type {
   PracticeTest,
   State,
 } from "./types";
-export const MODEL_VERSION = "personal-calibration-v1";
+export const MODEL_VERSION = "personal-calibration-v2";
+const offsets = { Easy: -10, Medium: -6, Hard: -2, "Teacher-Level": -1 };
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const round = (n: number) => Math.round(n * 10) / 10;
 export const mean = (xs: number[]) =>
@@ -64,7 +65,24 @@ export function attemptFeatures(
   const latest = sorted.at(-1)!;
   const test = tests.find((t) => t.id === latest.test_id);
   if (!test) throw new Error("Missing test metadata.");
+  // Rank-squared weights retain every completed quiz while favoring recent work.
+  // Normalize ranks first so long histories cannot overflow the weight sum.
+  const weights = sorted.map((_, index) => ((index + 1) / sorted.length) ** 2);
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const weightedAverage =
+    sorted.reduce(
+      (sum, attempt, index) => sum + attempt.score! * weights[index],
+      0,
+    ) / weightSum;
+  const weightedDifficultyOffset =
+    sorted.reduce((sum, attempt, index) => {
+      const metadata = tests.find((item) => item.id === attempt.test_id);
+      if (!metadata) throw new Error("Missing test metadata.");
+      return sum + offsets[metadata.difficulty] * weights[index];
+    }, 0) / weightSum;
   return {
+    weightedAverage,
+    weightedDifficultyOffset,
     latest: latest.score!,
     average: mean(sorted.map((a) => a.score!)),
     improvement: latest.score! - sorted[0].score!,
@@ -84,15 +102,12 @@ export function predictGrade(input: {
 }) {
   const { features: f, subject, examId } = input;
   const now = input.now ?? new Date();
-  for (const score of [f.latest, f.average])
+  for (const score of [f.latest, f.average, f.weightedAverage ?? f.average])
     if (!Number.isFinite(score) || score < 0 || score > 100)
       throw new Error("Practice scores must be between 0 and 100.");
-  const offsets = { Easy: -10, Medium: -6, Hard: -2, "Teacher-Level": -1 };
   const baseline = clamp(
-    f.latest * 0.65 +
-      f.average * 0.35 +
-      clamp(f.improvement * 0.15, -3, 3) +
-      offsets[f.difficulty],
+    (f.weightedAverage ?? f.average) +
+      (f.weightedDifficultyOffset ?? offsets[f.difficulty]),
   );
   const unique = new Map<string, HistoryExample>();
   for (const h of input.history) {
@@ -172,7 +187,7 @@ export function predictGrade(input: {
     model_version: MODEL_VERSION,
     explanation:
       selected.length === 0
-        ? "Low confidence: no paired school results yet. This conservative starting estimate blends your latest and average practice scores, improvement, and difficulty. The range is a heuristic, not a statistical guarantee."
-        : `Calibrated on ${selected.length} distinct school exam${selected.length === 1 ? "" : "s"} using ${subjectSpecific ? "subject-specific" : "subject-weighted overall"} results. Recent and similar exams count more; outliers are capped and adjustments shrink toward the baseline. Range uses errors from saved pre-result predictions. Confidence is ${confidence}; this is an estimate, not a guaranteed grade.`,
+        ? `Low confidence: no paired school results yet. Uses all ${f.attemptCount} completed practice quizzes for this exam, with more weight on recent quizzes and an adjustment for each quiz's difficulty. The range is a heuristic, not a statistical guarantee.`
+        : `Uses all ${f.attemptCount} completed practice quizzes for this exam, weighted toward recent results and adjusted for difficulty. Calibrated on ${selected.length} distinct school exam${selected.length === 1 ? "" : "s"} using ${subjectSpecific ? "subject-specific" : "subject-weighted overall"} results. Recent and similar exams count more; outliers are capped and adjustments shrink toward the baseline. Range uses errors from saved pre-result predictions. Confidence is ${confidence}; this is an estimate, not a guaranteed grade.`,
   };
 }
