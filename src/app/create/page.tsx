@@ -99,7 +99,7 @@ function CreateTest() {
       let mid = materialId;
       if (!mid || materialMode !== "existing") {
         setStage("Reading your study material…");
-        let upload: RequestInit;
+        let upload: RequestInit = {};
         if (materialMode === "file") {
           if (!files.length) throw new Error("Choose study files first.");
           if (files.length > 8) throw new Error("Select at most 8 files per test.");
