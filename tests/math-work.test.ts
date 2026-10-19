@@ -1,0 +1,16 @@
+import {beforeEach,afterEach,it,expect,vi} from "vitest";
+import {mkdtemp,rm} from "node:fs/promises";
+import os from "node:os";import path from "node:path";
+import {PUT,GET} from "../src/app/api/math-work/route";
+import {featureRequest} from "../src/lib/feature-request";
+import {updateLocalData,readLocalData} from "../src/lib/local-store";
+import {accountFor} from "../src/lib/billing";
+import type {Attempt,Question} from "../src/lib/types";
+let dir:string;const attemptId=crypto.randomUUID(),questionId=crypto.randomUUID(),testId=crypto.randomUUID();
+const input={attemptId,questionId,strokes:[{erase:false,width:3,points:[[1,2],[3,4]]}],transcription:"x = 2",confirmed:false};
+const req=(body:unknown)=>new Request("http://localhost:3000/api/math-work",{method:"PUT",headers:{origin:"http://localhost:3000","content-type":"application/json"},body:JSON.stringify(body)});
+beforeEach(async()=>{dir=await mkdtemp(path.join(os.tmpdir(),"math-test-"));vi.stubEnv("STUDYPREDICT_DATA_DIR",dir);await updateLocalData(d=>{accountFor(d,{id:"local-owner"},true);d.attempts.push({id:attemptId,test_id:testId,status:"in_progress",responses:{}} as Attempt);d.questions.push({id:questionId,test_id:testId,kind:"math"} as Question & {test_id:string});});});
+afterEach(async()=>{vi.unstubAllEnvs();await rm(dir,{recursive:true,force:true});});
+it("persists original strokes but does not turn unconfirmed recognition into an answer",async()=>{expect((await PUT(req(input))).status).toBe(200);const data=await readLocalData();expect(data.mathWork[0].strokes).toEqual(input.strokes);expect(data.attempts[0].responses).toEqual({});const r=await GET(new Request(`http://localhost:3000/api/math-work?attemptId=${attemptId}&questionId=${questionId}`));expect((await r.json()).work.transcription).toBe("x = 2");});
+it("rejects wrong question, completed work and free mutations",async()=>{expect((await PUT(req({...input,questionId:crypto.randomUUID()}))).status).toBe(404);await updateLocalData(d=>{d.attempts[0].status="completed";});expect((await PUT(req(input))).status).toBe(409);await updateLocalData(d=>{d.billingAccounts[0].family=false;});expect((await PUT(req(input))).status).toBe(403);});
+it("replays paid feature results and never automatically repeats failed calls",async()=>{const run=vi.fn(async()=>({transcription:"x = 2"}));const id=crypto.randomUUID();await featureRequest(id,input,run);await featureRequest(id,input,run);expect(run).toHaveBeenCalledTimes(1);await expect(featureRequest(id,{...input,confirmed:true},run)).rejects.toThrow("different settings");const fail=vi.fn(async()=>{throw new Error("timeout");});const failed=crypto.randomUUID();await expect(featureRequest(failed,input,fail)).rejects.toThrow("timeout");await expect(featureRequest(failed,input,fail)).rejects.toThrow("running or failed");expect(fail).toHaveBeenCalledTimes(1);});
