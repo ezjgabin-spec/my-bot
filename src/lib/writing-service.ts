@@ -13,7 +13,7 @@ const naturalSystem = `Revise awkward or mechanical wording for authentic readab
 export const writingMaxOutput = (action:WritingInput["action"])=> action==="grade"?3500:action==="humanize"?6000:6500;
 export async function runWriting(input:WritingInput, sourceText:string):Promise<WritingRevision> {
   const shared={essay:sourceText,assignment:input.assignment,rubric:input.rubric,teacherFeedback:input.teacherFeedback};
-  const revision:WritingRevision={id:input.requestId,createdAt:new Date().toISOString(),action:input.action,autoHumanize:input.autoHumanize,tone:input.tone};
+  const revision:WritingRevision={id:input.requestId,createdAt:new Date().toISOString(),action:input.action,autoHumanize:input.autoHumanize,tone:input.tone,result:""};
   if(input.action==="grade"){
     const feedback=await structured(gradeFeedbackSchema,gradeSystem,shared,writingMaxOutput(input.action),"writing");
     revision.feedback=feedback;
