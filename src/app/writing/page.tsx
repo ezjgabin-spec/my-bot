@@ -1,7 +1,7 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
 import Link from "next/link";
-import {BookOpen,FilePenLine,Sparkles,ArrowRight,Upload,RotateCcw} from "lucide-react";
+import {BookOpen,Sparkles,ArrowRight,Upload,RotateCcw} from "lucide-react";
 import {api} from "@/lib/client";
 import {useWorkspace} from "@/components/workspace";
 import type {WritingDocument,WritingInput,WritingRevision,GradeFeedback} from "@/lib/writing-types";
@@ -42,7 +42,7 @@ export default function WritingPage(){
  const upload=useRef<HTMLInputElement|null>(null);
  async function load(){try{const r=await api<{essays:WritingDocument[]}>("/api/writing");setDocs(r.essays);}catch(e){setError((e as Error).message);}}
  useEffect(()=>{if(connection==="ready"&&allowed)void load();},[connection,allowed]);
- function resetQuote(){setQuote(null);requestId.current=null;setNotice("");}
+ function resetQuote(){setQuote(null);requestId.current=null;}
  function chooseDoc(id:string){
   const d=docs.find(d=>d.id===id);
   setCurrent(id);setResult(d?.revisions.at(-1)??null);
