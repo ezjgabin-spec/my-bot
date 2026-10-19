@@ -275,3 +275,15 @@ describe("Claude boundary validation (SDK mocked; no live network)", () => {
     );
   });
 });
+
+it("enforces advanced distribution and one shared reading passage", async()=>{
+ const advanced={multipleChoice:10,written:0,writtenKind:"short_answer" as const,reading:"shared_passage" as const,teacherInstructions:"Use inference",gradingExpectations:"Evidence",additionalInstructions:"",workingRequired:false,mode:"exam" as const};
+ respond({questions,passage:"A coherent source passage. ".repeat(10)});
+ const result=await generateTest({...settings,advanced},"English","Source text");
+ expect(new Set(result.map(q=>q.passage)).size).toBe(1);
+ expect(result[0].passage).toContain("coherent");
+ respond({questions});
+ await expect(generateTest({...settings,advanced},"English","Source text")).rejects.toThrow("shared passage");
+ respond({questions,passage:"A coherent source passage. ".repeat(10)});
+ await expect(generateTest({...settings,advanced:{...advanced,multipleChoice:9,written:1}},"English","Source text")).rejects.toThrow("distribution");
+});

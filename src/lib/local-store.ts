@@ -46,6 +46,7 @@ export type LocalData = State & {
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
   flashcardDrafts: FlashcardDraft[];
+  testPresets: {id: string; name: string; settings: import("zod").z.infer<typeof import("./schemas").generateSchema>}[];
   questions: (Question & { test_id: string })[];
 };
 
@@ -64,6 +65,7 @@ export const emptyData = (): LocalData => ({
   materials: [],
   flashcardDecks: [],
   flashcardDrafts: [],
+  testPresets: [],
   questions: [],
 });
 
@@ -93,6 +95,7 @@ async function load(): Promise<LocalData> {
     parsed.billingUsage ??= [];
     parsed.flashcardDecks ??= [];
     parsed.flashcardDrafts ??= [];
+    parsed.testPresets ??= [];
     if (
       parsed.version !== 1 ||
       Object.keys(emptyData()).some(
@@ -312,6 +315,7 @@ export async function getGenerationContext(examId: string, materialId: string) {
       .map(({ prompt, topic }) => ({ prompt, topic })),
   );
   return {
+    attempts: data.attempts.filter(a => a.exam_id === examId),
     previousQuestions,
     flashcardPriorities: flashcardReviewPriorities(
       data.flashcardDecks,
@@ -333,6 +337,8 @@ export async function saveLocalTest(input: {
   count: number;
   timeLimit: number | null;
   questions: Omit<Question, "id">[];
+  advanced?: import("./test-settings").AdvancedSettings;
+  requested_difficulty?: Difficulty;
 }) {
   return updateLocalData((data) => {
     if (
@@ -356,6 +362,8 @@ export async function saveLocalTest(input: {
       exam_id: input.examId,
       material_id: input.materialId,
       difficulty: input.difficulty,
+      advanced: input.advanced,
+      requested_difficulty: input.requested_difficulty,
       format: input.format,
       question_count: input.count,
       time_limit_minutes: input.timeLimit,

@@ -25,6 +25,7 @@ export type Question = {
   position: number;
   kind: QuestionKind;
   prompt: string;
+  passage?: string;
   topic: string;
   options: string[] | null;
   max_points: number;
@@ -54,6 +55,8 @@ export type Exam = {
   created_at: string;
 };
 export type PracticeTest = {
+  advanced?: import("./test-settings").AdvancedSettings;
+  requested_difficulty?: Difficulty;
   id: string;
   exam_id: string;
   difficulty: Difficulty;
