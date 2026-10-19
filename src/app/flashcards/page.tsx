@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Layers3, RotateCcw, Shuffle, Sparkles, Zap, CircleHelp, CheckCheck } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Layers3, RotateCcw, Shuffle, Sparkles, Zap, CircleHelp, CheckCheck } from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { api } from "@/lib/client";
