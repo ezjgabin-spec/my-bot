@@ -27,7 +27,8 @@ export async function POST(request:Request){
     if(input.essayId&&input.materialId)throw new AppError("Cannot replace the source of an existing essay.",400);
     const sourceMaterial=input.materialId?prior.materials.find(m=>m.id===input.materialId):null;
     if(input.materialId&&!sourceMaterial)throw new AppError("Your uploaded essay was not found.",404);
-    const sourceText=original?.sourceText||input.text.trim()||sourceMaterial?.extracted_text||"";
+    const latestRevision=original?.revisions.slice().reverse().find(r=>r.action!=="grade");
+    const sourceText=(input.action==="humanize"&&latestRevision?latestRevision.result:undefined)||original?.sourceText||input.text.trim()||sourceMaterial?.extracted_text||"";
     if(sourceText.length<80||sourceText.length>45_000)throw new AppError("Essay must contain 80 to 45,000 characters. For large files, split the document.",400);
     const assignment=original?.assignment??input.assignment;
     const rubric=original?.rubric??input.rubric;
