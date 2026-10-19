@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { AppError, requireUser } from "./server";
 import { isCloud } from "./cloud";
+import { gen2TrialEnabled, gen2FreeBudgetMicros, nextUtcMonth, GEN2_FREE_TESTS } from "./gen2-rollout";
 import { updateLocalData, type LocalData } from "./local-store";
 import {
   activePlan,
@@ -42,6 +43,8 @@ export function accountFor(
   local = false,
   now = new Date(),
 ): BillingAccount {
+  const gen2 = gen2TrialEnabled();
+  const freeBudget = gen2 ? gen2FreeBudgetMicros() : FREE_ALLOWANCE_MICROS;
   let account = data.billingAccounts[0];
   if (!account) {
     account = {
@@ -54,9 +57,10 @@ export function accountFor(
       periodStart: null,
       customerId: null,
       subscriptionId: null,
-      balance: { ...zeroWallet(), free: FREE_ALLOWANCE_MICROS },
-      freeTests: 1,
-      nextFreeAt: new Date(now.getTime() + WEEK_MS).toISOString(),
+      balance: { ...zeroWallet(), free: freeBudget },
+      freeTests: gen2 ? GEN2_FREE_TESTS.signup : 1,
+      freeRuleVersion: gen2 ? 2 : undefined,
+      nextFreeAt: gen2 ? nextUtcMonth(now) : new Date(now.getTime() + WEEK_MS).toISOString(),
       codeAttempts: 0,
       codeWindow: now.toISOString(),
       lastPaidPeriodEnd: null,
@@ -65,13 +69,22 @@ export function accountFor(
     entry(
       data,
       "signup",
-      { ...zeroWallet(), free: FREE_ALLOWANCE_MICROS },
+      { ...zeroWallet(), free: freeBudget },
       "Signup test and free processing allowance",
     );
   }
   if (account.id !== user.id)
     throw new AppError("Billing account mismatch.", 403);
   if (user.email) account.email = user.email;
+  if (gen2 && account.freeRuleVersion !== 2) {
+    // An explicit beta migration; never silently modify existing balances while disabled.
+    account.freeRuleVersion = 2;
+    account.freeTests = GEN2_FREE_TESTS.signup;
+    account.nextFreeAt = nextUtcMonth(now);
+    const delta = freeBudget - account.balance.free;
+    account.balance.free = freeBudget;
+    entry(data, "signup", { ...zeroWallet(), free: delta }, "Gen 2 Free test allowance migration");
+  }
   if (
     account.paidUntil &&
     Date.parse(account.paidUntil) <= now.getTime() &&
@@ -88,21 +101,16 @@ export function accountFor(
     );
   }
   if (Date.parse(account.nextFreeAt) <= now.getTime()) {
-    const delta = FREE_ALLOWANCE_MICROS - account.balance.free;
-    account.freeTests = 1;
-    account.balance.free = FREE_ALLOWANCE_MICROS;
-    const periods =
-      Math.floor((now.getTime() - Date.parse(account.nextFreeAt)) / WEEK_MS) +
-      1;
-    account.nextFreeAt = new Date(
-      Date.parse(account.nextFreeAt) + periods * WEEK_MS,
-    ).toISOString();
-    entry(
-      data,
-      "weekly",
-      { ...zeroWallet(), free: delta },
-      "Weekly free test and processing allowance reset",
-    );
+    const delta = freeBudget - account.balance.free;
+    account.freeTests = gen2 ? GEN2_FREE_TESTS.monthly : 1;
+    account.balance.free = freeBudget;
+    if (gen2) {
+      account.nextFreeAt = nextUtcMonth(now);
+    } else {
+      const periods = Math.floor((now.getTime() - Date.parse(account.nextFreeAt)) / WEEK_MS) + 1;
+      account.nextFreeAt = new Date(Date.parse(account.nextFreeAt) + periods * WEEK_MS).toISOString();
+    }
+    entry(data, "weekly", { ...zeroWallet(), free: delta }, gen2 ? "Monthly non-rollover Free allowance reset" : "Weekly free test and processing allowance reset");
   }
   return account;
 }
@@ -205,7 +213,7 @@ export async function withFreeTest<T>(run: () => Promise<T>): Promise<T> {
       await updateLocalData((data) => {
         const a = accountFor(data, user, !isCloud());
         if (a.nextFreeAt === claimed)
-          a.freeTests = Math.min(1, a.freeTests + 1);
+          a.freeTests = Math.min(gen2TrialEnabled() ? GEN2_FREE_TESTS.signup : 1, a.freeTests + 1);
         entry(
           data,
           "free-test-return",
@@ -254,6 +262,7 @@ export async function reserveUsage(
     }
     const receipt: UsageReceipt = {
       ...input,
+      planAtRequest: activePlan(a),
       id: crypto.randomUUID(),
       at: new Date().toISOString(),
       completedAt: null,
