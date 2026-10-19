@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { AppError } from "./server";
 import type { BillingAccount, LedgerEntry, UsageReceipt } from "./plans";
+import type { FlashcardDeck } from "./flashcard-decks";
 import { isCloud } from "./cloud";
 import { combineDocumentSummaries, MAX_INTERPRETER_SECTIONS } from "./material-interpreter";
 
@@ -38,6 +39,7 @@ export type LocalData = State & {
   billingUsage: UsageReceipt[];
   version: 1;
   materials: StudyMaterial[];
+  flashcardDecks: FlashcardDeck[];
   questions: (Question & { test_id: string })[];
 };
 
@@ -54,6 +56,7 @@ export const emptyData = (): LocalData => ({
   grades: [],
   answers: [],
   materials: [],
+  flashcardDecks: [],
   questions: [],
 });
 
@@ -81,6 +84,7 @@ async function load(): Promise<LocalData> {
     parsed.billingAccounts ??= [];
     parsed.billingLedger ??= [];
     parsed.billingUsage ??= [];
+    parsed.flashcardDecks ??= [];
     if (
       parsed.version !== 1 ||
       Object.keys(emptyData()).some(
