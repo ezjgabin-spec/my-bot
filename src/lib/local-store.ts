@@ -1,4 +1,5 @@
 import "server-only";
+import { snapshotResearch, assessmentFormat, type ResearchSnapshot, type RealityCheck } from "./prediction-research";
 import { mkdir, readFile, rename, open, copyFile } from "node:fs/promises";
 import path from "node:path";
 import type {
@@ -46,6 +47,8 @@ export type LocalData = State & {
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
   flashcardDrafts: FlashcardDraft[];
+  researchSnapshots: ResearchSnapshot[];
+  realityChecks: RealityCheck[];
   mathWork: import("./math-work").MathWork[];
   featureRequests: {id:string;fingerprint:string;status:"running"|"ready"|"failed";result?:unknown;createdAt:string}[];
   testPresets: {id: string; name: string; settings: import("zod").z.infer<typeof import("./schemas").generateSchema>}[];
@@ -67,6 +70,8 @@ export const emptyData = (): LocalData => ({
   materials: [],
   flashcardDecks: [],
   flashcardDrafts: [],
+  researchSnapshots: [],
+  realityChecks: [],
   mathWork: [],
   featureRequests: [],
   testPresets: [],
@@ -100,6 +105,8 @@ async function load(): Promise<LocalData> {
     parsed.flashcardDecks ??= [];
     parsed.flashcardDrafts ??= [];
     parsed.mathWork ??= [];
+    parsed.researchSnapshots ??= [];
+    parsed.realityChecks ??= [];
     parsed.featureRequests ??= [];
     parsed.testPresets ??= [];
     if (
@@ -556,14 +563,22 @@ export async function finishLocalSubmission(
         attempt_id: attempt.id,
         created_at: new Date().toISOString(),
       });
+      const completedTest=data.tests.find(t=>t.id===attempt.test_id);
+      if(completedTest)snapshotResearch(data,attempt.exam_id,assessmentFormat(completedTest));
     }
   });
 }
 
-export async function recordLocalGrade(examId: string, grade: number) {
+export async function recordLocalGrade(examId: string, grade: number, feedback?: Omit<RealityCheck,"id"|"examId"|"grade"|"recordedAt">) {
   return updateLocalData((data) => {
     if (!data.exams.some((exam) => exam.id === examId))
       throw new AppError("Exam not found.", 404);
+    if(feedback){
+      const prior=data.realityChecks.find(r=>r.examId===examId);
+      if(prior && prior.format!==feedback.format)throw new AppError("An assessment format cannot be changed after its outcome was recorded. Use a separate exam for another assessment.",409);
+      if(prior)Object.assign(prior,feedback,{grade});
+      else data.realityChecks.push({id:crypto.randomUUID(),examId,grade,...feedback,recordedAt:new Date().toISOString()});
+    }
     const existing = data.grades.find((item) => item.exam_id === examId);
     if (existing) existing.grade = grade;
     else
@@ -643,6 +658,8 @@ function removeExams(data: LocalData, examIds: Set<string>) {
   );
   data.exams = data.exams.filter((e) => !examIds.has(e.id));
   data.grades = data.grades.filter((g) => !examIds.has(g.exam_id));
+  data.researchSnapshots=data.researchSnapshots.filter(s=>!examIds.has(s.examId));
+  data.realityChecks=data.realityChecks.filter(s=>!examIds.has(s.examId));
   data.predictions = data.predictions.filter((p) => !examIds.has(p.exam_id));
 }
 

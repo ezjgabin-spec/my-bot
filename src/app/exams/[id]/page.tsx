@@ -1,4 +1,7 @@
 "use client";
+import { RealityFields,ResearchHistory } from "@/components/reality-check";
+import type { Format } from "@/lib/types";
+import type { RealityCheck } from "@/lib/prediction-research";
 import { use, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Plus, Save, Target } from "lucide-react";
@@ -13,6 +16,11 @@ export default function ExamPage({
 }) {
   const { id } = use(params);
   const { state, connection, refresh } = useWorkspace();
+  const [format,setFormat]=useState<Format>("multiple_choice");
+  const [difficulty,setDifficulty]=useState<RealityCheck["difficulty"]>("unknown");
+  const [working,setWorking]=useState(false);
+  const [topics,setTopics]=useState("");
+  const [notes,setNotes]=useState("");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +44,7 @@ export default function ExamPage({
     try {
       await api(`/api/exams/${id}/grade`, {
         method: "PUT",
-        body: JSON.stringify({ grade: Number(value) }),
+        body: JSON.stringify({ grade: Number(value),feedback:{format,difficulty,workingRequired:working,topics,teacherNotes:notes} }),
       });
       await refresh();
       setSaved(true);
@@ -82,6 +90,7 @@ export default function ExamPage({
           )
         }
       />
+      <ResearchHistory key={String(saved)} examId={id}/>
       <div className="exam-detail-grid">
         <section className="panel form-panel">
           <span className="summary-icon">
@@ -109,6 +118,7 @@ export default function ExamPage({
                 }}
               />
             </label>
+            <RealityFields format={format} setFormat={setFormat} difficulty={difficulty} setDifficulty={setDifficulty} working={working} setWorking={setWorking} topics={topics} setTopics={setTopics} notes={notes} setNotes={setNotes}/>
             <ErrorMessage message={error} />
             {saved && (
               <p className="success-text" role="status">

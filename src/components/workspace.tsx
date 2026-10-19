@@ -46,6 +46,7 @@ type Workspace = {
   aiReady: boolean;
   email: string | null;
   authMethod: "access" | "password";
+  owner: boolean;
   error: string;
   refresh: () => Promise<void>;
 };
@@ -72,6 +73,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(empty);
   const [connection, setConnection] = useState<Connection>("loading");
   const [aiReady, setAiReady] = useState(false);
+  const [owner,setOwner]=useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<"access" | "password">("access");
   const [error, setError] = useState("");
@@ -91,6 +93,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (!response.ok)
         throw new Error(data.error || "Unable to load your workspace.");
       setAiReady(data.aiReady);
+      setOwner(data.owner===true);
       setEntitlement(data.entitlement ?? null);
       setEmail(data.user?.email ?? null);
       setAuthMethod(data.authMethod === "password" ? "password" : "access");
@@ -107,7 +110,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
   return (
     <Context.Provider
-      value={{ state, connection, aiReady, email, error, refresh, entitlement, authMethod }}
+      value={{ state, connection, aiReady, email, error, refresh, entitlement, authMethod, owner }}
     >
       {children}
     </Context.Provider>
@@ -128,7 +131,7 @@ const navigation = [
 ];
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { connection, aiReady, entitlement } = useWorkspace();
+  const { connection, aiReady, entitlement, owner } = useWorkspace();
   const { appearance } = useAppearance();
   const themeVariables = useAppearanceVariables();
   const [open, setOpen] = useState(false);
@@ -221,7 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div className="workspace-label">{appearance.dashboard === "advanced" ? "INTELLIGENCE WORKSPACE" : "EXPLORE YOUR POTENTIAL"}</div>
           <nav aria-label="Main navigation">
-            {navigation.map(({ href, label, icon: Icon }) => (
+            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined}] : [])].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
