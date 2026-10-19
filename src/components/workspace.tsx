@@ -24,6 +24,7 @@ import {
   X,
   Waves,
   Wallet,
+  Layers3,
 } from "lucide-react";
 import type { State } from "@/lib/types";
 import type { CSSProperties } from "react";
@@ -115,6 +116,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/create", label: "Create practice test", icon: Plus },
+  { href: "/flashcards", label: "Flashcard Studio", icon: Layers3 },
   { href: "/history", label: "Tests & history", icon: History },
   {
     href: "/analytics",
