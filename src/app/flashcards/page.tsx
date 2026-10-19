@@ -2,108 +2,155 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, ChevronRight, Layers3, RotateCcw, Shuffle, Sparkles, Zap, CircleHelp, CheckCheck } from "lucide-react";
+import {
+  ArrowLeft, ArrowRight, Check, ChevronRight, Layers3,
+  RotateCcw, Shuffle, Sparkles, Zap, CircleHelp, CheckCheck,
+  Archive, BookMarked, Save, Undo2, TriangleAlert,
+} from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { api } from "@/lib/client";
+import type { FlashcardDeck, FlashcardRating, FlashcardAction } from "@/lib/flashcard-decks";
 
-type Card = { front: string; back: string; topic: string };
-type Rating = "known" | "almost" | "again";
-type Motion = Rating | null;
-const DELAY = 460;
+type DeckSummary = {
+  id: string; title: string; created_at: string; updated_at: string;
+  total: number; active: number; mastered: number; needs_work: number;
+  material_id: string;
+};
+type Motion = FlashcardRating | null;
+const ANIMATION_MS = 460;
+
+function summary(deck: FlashcardDeck): DeckSummary {
+  return {
+    id: deck.id, title: deck.title, created_at: deck.created_at,
+    updated_at: deck.updated_at, material_id: deck.material_id,
+    total: deck.cards.length, active: deck.active.length,
+    mastered: deck.mastered.length, needs_work: deck.needs_work.length,
+  };
+}
 
 export default function FlashcardsPage() {
   const { connection, aiReady } = useWorkspace();
   const [materials, setMaterials] = useState<{ id: string; filename: string }[]>([]);
+  const [decks, setDecks] = useState<DeckSummary[]>([]);
+  const [deck, setDeck] = useState<FlashcardDeck | null>(null);
   const [materialId, setMaterialId] = useState("");
   const [count, setCount] = useState<10 | 20 | 30>(10);
-  const [cards, setCards] = useState<Card[]>([]);
-  const [queue, setQueue] = useState<number[]>([]);
-  const [rating, setRating] = useState<Record<number, Rating>>({});
   const [flipped, setFlipped] = useState(false);
   const [motion, setMotion] = useState<Motion>(null);
   const [busy, setBusy] = useState(false);
+  const [loadingDeckId, setLoadingDeckId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef(false);
 
   useEffect(() => {
     if (connection !== "ready") return;
-    api<{ materials: { id: string; filename: string }[] }>("/api/materials")
-      .then((data) => setMaterials(data.materials))
-      .catch((e: Error) => setError(e.message));
+    let cancelled = false;
+    Promise.all([
+      api<{ materials: { id: string; filename: string }[] }>("/api/materials"),
+      api<{ decks: DeckSummary[] }>("/api/flashcards"),
+    ]).then(([materialsResponse, decksResponse]) => {
+      if (cancelled) return;
+      setMaterials(materialsResponse.materials);
+      setDecks(decksResponse.decks);
+    }).catch((e: Error) => {
+      if (!cancelled) setError(e.message);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [connection]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  const currentId = queue[0];
-  const current = cards[currentId];
-  const known = Object.values(rating).filter((value) => value === "known").length;
-  const almost = Object.values(rating).filter((value) => value === "almost").length;
-  const again = Object.values(rating).filter((value) => value === "again").length;
-  const finished = cards.length > 0 && queue.length === 0;
-  const completion = cards.length ? Math.round((known / cards.length) * 100) : 0;
+  function saveResult(updated: FlashcardDeck) {
+    setDeck(updated);
+    setDecks((existing) =>
+      [summary(updated), ...existing.filter((item) => item.id !== updated.id)]);
+  }
 
-  async function generate() {
-    if (!materialId || busy) return;
-    if (timer.current) clearTimeout(timer.current);
-    setBusy(true); setError(""); setMotion(null);
+  async function openDeck(id: string) {
+    if (pending.current) return;
+    setLoadingDeckId(id);
+    setError("");
     try {
-      const result = await api<{ cards: Card[]; sampled: boolean }>("/api/flashcards/generate", {
-        method: "POST",
-        body: JSON.stringify({ materialId, count }),
-      });
-      setCards(result.cards);
-      setQueue(result.cards.map((_, i) => i));
-      setRating({});
+      const response = await api<{ deck: FlashcardDeck }>(`/api/flashcards/${id}`);
+      saveResult(response.deck);
       setFlipped(false);
-      if (result.sampled) setError("This large document was sampled across sections. The deck may not cover every topic.");
+      setMotion(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setLoadingDeckId(null);
+    }
+  }
+
+  async function generate() {
+    if (!materialId || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setError("");
+    setMotion(null);
+    try {
+      const result = await api<{ deck: FlashcardDeck; sampled: boolean }>("/api/flashcards/generate", {
+        method: "POST",
+        body: JSON.stringify({ materialId, count }),
+      });
+      saveResult(result.deck);
+      setFlipped(false);
+      if (result.sampled) setError("The source was sampled across a large document. The deck may not cover every topic.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
 
-  function review(result: Rating) {
-    if (!flipped || motion || currentId === undefined) return;
-    setMotion(result);
-    timer.current = setTimeout(() => {
-      setRating((existing) => ({ ...existing, [currentId]: result }));
-      setQueue((existing) => {
-        const remaining = existing.slice(1);
-        if (result === "known") return remaining;
-        if (result === "almost") return [...remaining, currentId];
-        // "Again" comes back soon, but not immediately.
-        const next = [...remaining];
-        next.splice(Math.min(2, next.length), 0, currentId);
-        return next;
+  async function action(kind: FlashcardAction, cardId?: string) {
+    if (!deck || pending.current) return;
+    if ((kind === "known" || kind === "almost" || kind === "again") && (!flipped || !cardId)) return;
+    if (kind === "almost" && deck.almost_seen.includes(cardId ?? "")) return;
+    if (kind === "restart" && !window.confirm("Restart this deck? This resets your mastered and needs-work groups."))
+      return;
+    pending.current = true;
+    setBusy(true);
+    setError("");
+    if (kind === "known" || kind === "almost" || kind === "again") setMotion(kind);
+    const start = Date.now();
+    try {
+      const result = await api<{ deck: FlashcardDeck }>(`/api/flashcards/${deck.id}`, {
+        method: "POST",
+        body: JSON.stringify({ action: kind, cardId }),
       });
-      setFlipped(false);
+      if (kind === "known" || kind === "almost" || kind === "again") {
+        await new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, ANIMATION_MS - (Date.now() - start))));
+      }
+      saveResult(result.deck);
+      setFlipped(kind === "undo");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
       setMotion(null);
-      timer.current = null;
-    }, DELAY);
-  }
-  function reset() {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    setQueue(cards.map((_, i) => i));
-    setRating({});
-    setFlipped(false);
-    setMotion(null);
-  }
-  function shuffle() {
-    if (motion) return;
-    const shuffled = [...queue];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      pending.current = false;
+      setBusy(false);
     }
-    setQueue(shuffled);
-    setFlipped(false);
   }
+
+  const cardId = deck?.active[0];
+  const current = deck?.cards.find((card) => card.id === cardId);
+  const secondChance = !!(cardId && deck?.almost_seen.includes(cardId));
+  const completed = !!deck && deck.active.length === 0;
+  const mastered = deck?.mastered.length ?? 0;
+  const active = deck?.active.length ?? 0;
+  const needsWork = deck?.needs_work.length ?? 0;
+  const total = deck?.cards.length ?? 0;
+  const completion = total ? Math.round((mastered / total) * 100) : 0;
+
   return (
     <>
       <PageHeader eyebrow="YOUR PERSONAL RECALL LAB" title="Flashcard Studio"
-        description="Your actual class materials, transformed into a smarter way to remember." />
+        description="Learn what sticks. Save what matters. Pick up exactly where you left off." />
+
       <section className="panel flash-config">
         <div className="flash-config-heading">
           <div className="flash-icon"><Layers3 size={22} /></div>
@@ -124,74 +171,146 @@ export default function FlashcardsPage() {
         </div>
         <div className="flash-config-actions">
           <button className="flash-btn flash-btn-primary" type="button"
-            disabled={!materialId || busy || !aiReady} onClick={generate}>
-            <Sparkles size={17} className={busy ? "flash-spin" : ""} />
-            {busy ? "Crafting your cards…" : cards.length ? "Generate a fresh deck" : "Generate flashcards"}
+            disabled={!materialId || busy || !aiReady} onClick={() => void generate()}>
+            <Sparkles size={17} className={busy && !motion ? "flash-spin" : ""} />
+            {busy && !motion ? "Crafting your cards…" : "Generate a new deck"}
             {!busy && <ChevronRight size={16} />}
           </button>
           <Link href="/create" className="flash-text-link">Need to upload notes? <ArrowRight size={15} /></Link>
         </div>
-        <p className="helper">AI generation uses your existing study allowance. Your current deck stays available until you leave or refresh this page.</p>
+        <p className="helper">Generated decks and review progress are saved to your private workspace. AI generation uses your study allowance.</p>
         <ErrorMessage message={error} />
       </section>
 
-      {cards.length > 0 && (
+      <section className="panel flash-library" aria-label="Your saved flashcard decks">
+        <div className="flash-section-heading">
+          <div><span className="flash-eyebrow"><BookMarked size={14} /> SAVED TO YOUR WORKSPACE</span><h2>Your decks</h2>
+            <p>Close the app and return tomorrow. Your active, mastered and needs-work cards will still be here.</p>
+          </div>
+          <Save size={21} className="muted" />
+        </div>
+        {loading ? <p className="flash-library-empty">Loading your saved decks…</p> : decks.length === 0 ? (
+          <p className="flash-library-empty">No decks yet. Generate one from your saved notes above.</p>
+        ) : (
+          <div className="flash-library-grid">
+            {decks.map((saved) => (
+              <button key={saved.id} type="button" disabled={busy || loadingDeckId !== null}
+                onClick={() => void openDeck(saved.id)}
+                className={`flash-deck-tile ${deck?.id === saved.id ? "selected" : ""}`}>
+                <span className="flash-deck-icon"><Layers3 size={19} /></span>
+                <strong>{saved.title}</strong>
+                <span className="flash-deck-meta">
+                  <span>{saved.active} active</span><span>{saved.mastered} mastered</span><span>{saved.needs_work} needs work</span>
+                </span>
+                <span className="flash-deck-footer">
+                  {loadingDeckId === saved.id ? "Opening…" : deck?.id === saved.id ? "Studying now" : "Resume deck"}
+                  <ArrowRight size={15} />
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {deck && (
         <section className="panel flash-lab" aria-label="Interactive flashcards">
           <div className="flash-lab-head">
             <div>
               <span className="flash-eyebrow"><Zap size={13} /> ACTIVE RECALL MODE</span>
-              <h2>{finished ? "You cleared the deck!" : "Flip. Recall. Improve."}</h2>
-              <p>{finished ? "Every card was marked as known." : "Mark what you remember. The tough ones come back around."}</p>
+              <h2>{completed ? (needsWork ? "Active deck complete" : "You mastered every card!") : "Flip. Recall. Improve."}</h2>
+              <p>{completed ? "Your progress is saved. Mastered and needs-work cards stay in separate groups." :
+                "Every rating saves instantly. Work through your active cards at your own pace."}</p>
             </div>
             <div className="flash-tools">
-              <button type="button" onClick={shuffle} disabled={motion !== null || finished} className="flash-tool" title="Shuffle remaining cards"><Shuffle size={16} /> Shuffle</button>
-              <button type="button" onClick={reset} className="flash-tool" title="Restart this deck"><RotateCcw size={16} /> Reset</button>
+              <button type="button" className="flash-tool flash-undo" onClick={() => void action("undo")} disabled={busy || !deck.previous}
+                title="Undo your last rating or action"><Undo2 size={17} /> Back / Undo</button>
+              <button type="button" onClick={() => void action("shuffle")} disabled={busy || active < 2} className="flash-tool" title="Shuffle remaining cards"><Shuffle size={16} /> Shuffle</button>
+              <button type="button" onClick={() => void action("restart")} disabled={busy} className="flash-tool" title="Start all cards over"><RotateCcw size={16} /> Restart</button>
             </div>
           </div>
-          <div className="flash-progress-line"><div style={{ width: `${completion}%` }} /></div>
-          <div className="flash-stats">
-            <span><i className="flash-dot green" /> {known} mastered</span>
-            <span><i className="flash-dot yellow" /> {almost} almost</span>
-            <span><i className="flash-dot red" /> {again} need work</span>
+
+          <div className="flash-progress-line" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completion} aria-label="Cards mastered">
+            <div style={{ width: `${completion}%` }} />
+          </div>
+          <div className="flash-stats flash-group-stats">
+            <span><i className="flash-dot purple" /> {active} active</span>
+            <span><i className="flash-dot green" /> {mastered} mastered</span>
+            <span><i className="flash-dot red" /> {needsWork} needs work</span>
             <strong>{completion}% mastered</strong>
           </div>
-          {finished ? (
+
+          {completed ? (
             <div className="flash-finish">
-              <div className="flash-finish-icon"><CheckCheck size={34} /></div>
-              <h3>All {cards.length} cards mastered</h3>
-              <p>Nice work. Test your understanding with fresh practice questions to make sure it sticks.</p>
+              <div className="flash-finish-icon">{needsWork ? <Archive size={34} /> : <CheckCheck size={34} />}</div>
+              <h3>{mastered} of {total} cards mastered</h3>
+              <p>{needsWork ? `The ${needsWork} red cards are saved separately. Come back to those whenever you're ready.` :
+                "Every card is in your mastered group. Ready to test your understanding?"}</p>
               <div className="flash-finish-actions">
-                <button className="flash-btn flash-btn-primary" type="button" onClick={reset}><RotateCcw size={17} /> Study again</button>
+                {needsWork > 0 && <button className="flash-btn flash-btn-primary" type="button" disabled={busy}
+                  onClick={() => void action("retry-red")}><RotateCcw size={17} /> Study the red deck ({needsWork})</button>}
                 <Link className="flash-btn flash-btn-outline" href="/create"><ArrowRight size={17} /> Build a practice test</Link>
               </div>
             </div>
-          ) : current ? (
+          ) : current && (
             <>
               <div className="flash-card-stage">
-                <button type="button" key={currentId} onClick={() => { if (!motion) setFlipped(!flipped); }}
-                  disabled={motion !== null}
-                  aria-label={flipped ? "Flip to the question" : "Reveal flashcard answer"}
+                <button type="button" key={cardId} onClick={() => { if (!busy) setFlipped(!flipped); }}
+                  disabled={busy}
+                  aria-label={flipped ? "Flip back to the question" : "Reveal flashcard answer"}
                   aria-pressed={flipped}
                   className={`flash-card ${flipped ? "is-flipped" : ""} ${motion ? `flash-${motion}` : ""}`}>
                   <span className="flash-card-shine" aria-hidden="true" />
                   <span className="flash-card-top"><span className="flash-card-category">{current.topic}</span><span>{flipped ? "ANSWER" : "QUESTION"}</span></span>
                   <span className="flash-card-content">{flipped ? current.back : current.front}</span>
-                  <span className="flash-card-bottom"><Layers3 size={16} /> Tap anywhere to flip <span className="flash-card-number">{cards.length - queue.length + 1} / {cards.length} mastered path</span></span>
-                  {motion && <span className={`flash-feedback flash-feedback-${motion}`}>{motion === "known" ? <Check size={30} /> : motion === "almost" ? <Zap size={30} /> : <RotateCcw size={30} />}{motion === "known" ? "MASTERED" : motion === "almost" ? "BACK IN THE DECK" : "TRY AGAIN SOON"}</span>}
+                  <span className="flash-card-bottom"><Layers3 size={16} /> Tap to flip <span className="flash-card-number">{active} card{active === 1 ? "" : "s"} remaining</span></span>
+                  {motion && <span className={`flash-feedback flash-feedback-${motion}`}>
+                    {motion === "known" ? <Check size={30} /> : motion === "almost" ? <Zap size={30} /> : <RotateCcw size={30} />}
+                    {motion === "known" ? "MASTERED" : motion === "almost" ? "BACK OF THE DECK" : "SAVED TO NEEDS WORK"}
+                  </span>}
                 </button>
               </div>
               <div className="flash-review-controls">
                 {flipped ? (
                   <>
-                    <button type="button" disabled={motion !== null} className="flash-btn flash-rate flash-rate-again" onClick={() => review("again")}><RotateCcw size={18} /><span>Again<small>Bring it back soon</small></span></button>
-                    <button type="button" disabled={motion !== null} className="flash-btn flash-rate flash-rate-almost" onClick={() => review("almost")}><CircleHelp size={19} /><span>Almost<small>Move to back of deck</small></span></button>
-                    <button type="button" disabled={motion !== null} className="flash-btn flash-rate flash-rate-known" onClick={() => review("known")}><Check size={20} /><span>Know it<small>Master this card</small></span></button>
+                    <button type="button" disabled={busy} className="flash-btn flash-rate flash-rate-again" onClick={() => void action("again", cardId)}>
+                      <RotateCcw size={18} /><span>Needs work<small>Move to red deck</small></span>
+                    </button>
+                    {!secondChance && <button type="button" disabled={busy} className="flash-btn flash-rate flash-rate-almost" onClick={() => void action("almost", cardId)}>
+                      <CircleHelp size={19} /><span>Almost<small>Move to back of deck</small></span>
+                    </button>}
+                    <button type="button" disabled={busy} className="flash-btn flash-rate flash-rate-known" onClick={() => void action("known", cardId)}>
+                      <Check size={20} /><span>Know it<small>Move to mastered</small></span>
+                    </button>
                   </>
                 ) : <button className="flash-btn flash-btn-primary flash-reveal" onClick={() => setFlipped(true)} type="button">Reveal answer <ArrowRight size={17} /></button>}
               </div>
-              <p className="flash-microcopy">Green removes the card · Yellow sends it to the back · Red brings it back soon</p>
+              <p className="flash-microcopy">{secondChance
+                ? "Second chance: you already tapped Almost once. Choose green if you know it or red if you still don't."
+                : "Almost moves the card to the back once. When it returns, you must choose Know it or Needs work."}</p>
             </>
-          ) : null}
+          )}
+
+          <div className="flash-saved-groups">
+            <details className="flash-group-details">
+              <summary><span><Check size={16} /> Mastered deck <strong>{mastered}</strong></span><ChevronRight size={16} /></summary>
+              <div className="flash-group-list">
+                {mastered ? deck.cards.filter((item) => deck.mastered.includes(item.id)).map((item) => (
+                  <p key={item.id}><strong>{item.front}</strong><small>{item.topic}</small></p>
+                )) : <p>Cards you confidently know will collect here.</p>}
+              </div>
+            </details>
+            <details className="flash-group-details flash-group-red">
+              <summary><span><TriangleAlert size={16} /> Needs-work deck <strong>{needsWork}</strong></span><ChevronRight size={16} /></summary>
+              <div className="flash-group-list">
+                {needsWork ? deck.cards.filter((item) => deck.needs_work.includes(item.id)).map((item) => (
+                  <p key={item.id}><strong>{item.front}</strong><small>{item.topic}</small></p>
+                )) : <p>Red cards will collect here until you decide to review them.</p>}
+                {needsWork > 0 && active > 0 && <button type="button" className="flash-tool flash-red-retry" disabled={busy}
+                  onClick={() => void action("retry-red")}><RotateCcw size={15} /> Add red cards to active deck</button>}
+              </div>
+            </details>
+          </div>
+          <div className="flash-persistent-note"><Save size={15} /> Your place and ratings are saved automatically. The Back / Undo arrow reverses your last choice.</div>
         </section>
       )}
     </>
