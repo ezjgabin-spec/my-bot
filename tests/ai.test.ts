@@ -10,11 +10,24 @@ vi.mock("@anthropic-ai/sdk", () => {
   }
   class Anthropic {
     static APIError = APIError;
-    messages = { create: async (...args: unknown[]) => ({ id: "msg_test", usage: { input_tokens: 100, output_tokens: 100 }, ...await mocked.create(...args) }), countTokens: async () => ({ input_tokens: 100 }) };
+    messages = {
+      create: async (...args: unknown[]) => ({
+        id: "msg_test",
+        usage: { input_tokens: 100, output_tokens: 100 },
+        ...(await mocked.create(...args)),
+      }),
+      countTokens: async () => ({ input_tokens: 100 }),
+    };
   }
   return { default: Anthropic };
 });
-import { generateTest, gradeWritten, summarizeMaterial } from "../src/lib/ai";
+import {
+  generateTest,
+  gradeWritten,
+  summarizeMaterial,
+  generateFlashcards,
+} from "../src/lib/ai";
+import { readLocalData } from "../src/lib/local-store";
 import type { Question } from "../src/lib/types";
 const settings = {
   examId: "11111111-1111-4111-8111-111111111111",
@@ -47,8 +60,50 @@ beforeEach(async () => {
   vi.stubEnv("ANTHROPIC_API_KEY", "test-only-not-a-real-key");
   mocked.create.mockReset();
 });
-afterEach(async () => { vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await rm(directory, { recursive: true, force: true });
+});
 describe("Claude boundary validation (SDK mocked; no live network)", () => {
+  it("meters AI flashcards separately and records provider-reported usage", async () => {
+    const cards = Array.from({ length: 5 }, (_, i) => ({
+      front: `Question ${i}`,
+      back: "Answer",
+      topic: "Topic",
+    }));
+    respond({ cards });
+    expect(await generateFlashcards("Complete source guide", 5)).toEqual(cards);
+    const data = await readLocalData();
+    expect(data.billingUsage).toHaveLength(1);
+    expect(data.billingUsage[0]).toMatchObject({
+      operation: "flashcards",
+      status: "completed",
+      inputTokens: 100,
+      outputTokens: 100,
+    });
+    expect(data.billingUsage[0].costMicros).toBeGreaterThan(0);
+  });
+  it("passes linked flashcard weaknesses as topic preferences without changing test difficulty", async () => {
+    respond({ questions });
+    await generateTest(
+      settings,
+      "Math",
+      "Two plus two equals four.",
+      false,
+      [],
+      ["Arithmetic: Two plus two"],
+    );
+    const payload = JSON.parse(
+      mocked.create.mock.calls[0][0].messages[0].content,
+    );
+    expect(payload.selfReportedFlashcardReview).toEqual([
+      "Arithmetic: Two plus two",
+    ]);
+    expect(payload.settings.difficulty).toBe("Medium");
+    expect(payload.flashcardGuidance).toContain(
+      "not verified ability or test scores",
+    );
+  });
   it("balances answer positions and preserves correct text for grading", async () => {
     respond({ questions });
     const result = await generateTest(

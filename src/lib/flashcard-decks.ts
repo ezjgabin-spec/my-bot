@@ -6,7 +6,8 @@ export type Flashcard = {
 };
 
 export type FlashcardRating = "known" | "almost" | "again";
-export type FlashcardAction = FlashcardRating | "undo" | "shuffle" | "retry-red" | "restart";
+export type FlashcardAction =
+  FlashcardRating | "undo" | "shuffle" | "retry-red" | "restart";
 
 type FlashcardSnapshot = {
   active: string[];
@@ -16,7 +17,8 @@ type FlashcardSnapshot = {
 };
 export type FlashcardDeck = FlashcardSnapshot & {
   id: string;
-  material_id: string;
+  material_id: string | null;
+  source?: "manual" | "smart-import" | "ai";
   title: string;
   created_at: string;
   updated_at: string;
@@ -32,21 +34,27 @@ const copySnapshot = (deck: FlashcardDeck): FlashcardSnapshot => ({
 });
 
 export function makeFlashcardDeck(
-  materialId: string,
+  materialId: string | null,
   title: string,
   cards: Omit<Flashcard, "id">[],
   id: () => string = () => crypto.randomUUID(),
   now: () => string = () => new Date().toISOString(),
 ): FlashcardDeck {
-  if (!cards.length || cards.length > 30) throw new Error("Invalid deck size.");
+  if (!cards.length || cards.length > 500)
+    throw new Error("Invalid deck size.");
   const created_at = now();
   const withIds = cards.map((card) => ({ ...card, id: id() }));
   return {
-    id: id(), material_id: materialId, title,
-    created_at, updated_at: created_at,
+    id: id(),
+    material_id: materialId,
+    title,
+    created_at,
+    updated_at: created_at,
     cards: withIds,
     active: withIds.map((card) => card.id),
-    mastered: [], needs_work: [], almost_seen: [],
+    mastered: [],
+    needs_work: [],
+    almost_seen: [],
   };
 }
 
@@ -57,13 +65,16 @@ export function changeFlashcardDeck(
   now: () => string = () => new Date().toISOString(),
 ): FlashcardDeck {
   const next = {
-    ...deck, ...copySnapshot(deck),
-    previous: deck.previous ? {
-      active: [...deck.previous.active],
-      mastered: [...deck.previous.mastered],
-      needs_work: [...deck.previous.needs_work],
-      almost_seen: [...deck.previous.almost_seen],
-    } : undefined,
+    ...deck,
+    ...copySnapshot(deck),
+    previous: deck.previous
+      ? {
+          active: [...deck.previous.active],
+          mastered: [...deck.previous.mastered],
+          needs_work: [...deck.previous.needs_work],
+          almost_seen: [...deck.previous.almost_seen],
+        }
+      : undefined,
     updated_at: now(),
   };
   if (action === "undo") {
@@ -75,9 +86,13 @@ export function changeFlashcardDeck(
 
   if (action === "known" || action === "again" || action === "almost") {
     if (!cardId || next.active[0] !== cardId)
-      throw new Error("This card is no longer at the front. Reload and try again.");
+      throw new Error(
+        "This card is no longer at the front. Reload and try again.",
+      );
     if (action === "almost" && next.almost_seen.includes(cardId))
-      throw new Error("You already chose Almost for this card. Now choose Know it or Needs work.");
+      throw new Error(
+        "You already chose Almost for this card. Now choose Know it or Needs work.",
+      );
     next.previous = copySnapshot(next);
     next.active.shift();
     if (action === "known") next.mastered.push(cardId);

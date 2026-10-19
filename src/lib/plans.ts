@@ -128,7 +128,7 @@ export type LedgerEntry = {
 };
 export type UsageReceipt = {
   id: string;
-  operation: "test" | "grading" | "interpretation";
+  operation: "test" | "grading" | "interpretation" | "flashcards";
   model: string;
   pricingVersion: string;
   at: string;
