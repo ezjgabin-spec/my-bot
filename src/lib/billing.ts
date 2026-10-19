@@ -262,6 +262,7 @@ export async function reserveUsage(
     }
     const receipt: UsageReceipt = {
       ...input,
+      planAtRequest: activePlan(a),
       id: crypto.randomUUID(),
       at: new Date().toISOString(),
       completedAt: null,
