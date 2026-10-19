@@ -14,7 +14,8 @@ export async function POST(request:Request){
   if(input.essayId&&!doc)throw new AppError("Essay not found.",404);
   const material=input.materialId?data.materials.find(m=>m.id===input.materialId):null;
   if(input.materialId&&!material)throw new AppError("Material not found.",404);
-  const length=doc?.sourceText.length||input.text.length||material?.extracted_text.length||0;
+  const latestRevision=doc?.revisions.slice().reverse().find(r=>r.action!=="grade");
+  const length=(input.action==="humanize"&&latestRevision?latestRevision.result.length:0)||doc?.sourceText.length||input.text.length||material?.extracted_text.length||0;
   if(length<80||length>45000)throw new AppError("Essay must contain 80 to 45,000 characters.",400);
   return NextResponse.json({estimate:writingEstimate(input,length),disclaimer:"Estimate only. Actual billed credits depend on Claude token usage. Auto Humanize adds a separate metered request."});
  }catch(e){return apiError(e);}
