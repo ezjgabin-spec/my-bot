@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { protectMutation, readJson, apiError, requireUser, AppError } from "@/lib/server";
-import { readLocalData } from "@/lib/local-store";
+import { readLocalData, updateLocalData } from "@/lib/local-store";
+import { makeFlashcardDeck } from "@/lib/flashcard-decks";
 import { isCloud } from "@/lib/cloud";
 import { selectStudyMaterial } from "@/lib/material-selection";
 import { withAiLock, generateFlashcards } from "@/lib/ai";
@@ -29,7 +30,12 @@ export async function POST(request: Request) {
     const selection = selectStudyMaterial(source, []);
     const cards = await withAiLock(user.id, () =>
       withFreeTest(() => generateFlashcards(selection.text, count)));
-    return NextResponse.json({ cards, sampled: selection.sampled });
+    const deck = await updateLocalData((data) => {
+      const saved = makeFlashcardDeck(materialId, material.filename, cards);
+      data.flashcardDecks.push(saved);
+      return saved;
+    });
+    return NextResponse.json({ deck, sampled: selection.sampled }, { status: 201 });
   } catch (e) {
     return apiError(e);
   }
