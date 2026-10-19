@@ -17,7 +17,8 @@ export async function GET(){
    receipts=rows.results.slice(0,10000).map(r=>JSON.parse(r.value) as UsageReceipt);
   }else receipts=(await readLocalData()).billingUsage;
   const metrics=summarizeUsage(receipts);
+  const recent=receipts.slice().sort((a,b)=>b.at.localeCompare(a.at)).slice(0,100).map(r=>({id:r.id,at:r.at,feature:r.operation,plan:r.planAtRequest??"unknown",status:r.status,model:r.model,pricingVersion:r.pricingVersion,inputTokens:r.inputTokens,outputTokens:r.outputTokens,costMicros:r.costMicros,chargedMicros:r.chargedMicros}));
   const sum=(key:"costMicros"|"chargedMicros")=>metrics.reduce((total,row)=>total+row[key],0);
-  return NextResponse.json({metrics,totalRequests:receipts.length,costMicros:sum("costMicros"),chargedMicros:sum("chargedMicros"),limited,rateNote:"Estimated provider token cost; wallet debits are not subscription revenue. Gross profit requires validated revenue, payment fees and infrastructure costs."});
+  return NextResponse.json({metrics,recent,totalRequests:receipts.length,costMicros:sum("costMicros"),chargedMicros:sum("chargedMicros"),limited,rateNote:"Estimated provider token cost; wallet debits are not subscription revenue. Gross profit requires validated revenue, payment fees and infrastructure costs."});
  }catch(e){return apiError(e);}
 }
