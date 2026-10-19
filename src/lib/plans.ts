@@ -1,3 +1,4 @@
+import { gen2TrialEnabled } from "./gen2-rollout";
 // Public product terms. Money in the ledger is integer microdollars, not floats.
 export const MICROS_PER_CREDIT = 25_000;
 export const FREE_ALLOWANCE_MICROS = 300_000;
@@ -94,6 +95,7 @@ export type BillingAccount = {
   subscriptionId: string | null;
   balance: Wallet;
   freeTests: number;
+  freeRuleVersion?: 2;
   nextFreeAt: string;
   codeAttempts: number;
   codeWindow: string;
@@ -160,4 +162,4 @@ export function activePlan(account: BillingAccount, now = Date.now()): PlanId {
       : "free";
 }
 export const hasPredictions = (account: BillingAccount) =>
-  account.family || activePlan(account) !== "free";
+  gen2TrialEnabled() || account.family || activePlan(account) !== "free";
