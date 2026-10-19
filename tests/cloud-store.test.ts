@@ -21,7 +21,20 @@ import { DELETE as deleteSubject } from "../src/app/api/subjects/[id]/route";
 import { DELETE as deleteTest } from "../src/app/api/tests/[id]/route";
 import { DELETE as deleteExam } from "../src/app/api/exams/[id]/route";
 import { POST as interpret } from "../src/app/api/materials/interpret/route";
-import { reserveUsage, settleUsage, redeemFamilyCode } from "../src/lib/billing";
+import {
+  reserveUsage,
+  settleUsage,
+  redeemFamilyCode,
+} from "../src/lib/billing";
+import {
+  POST as saveFlashcards,
+  GET as listFlashcards,
+} from "../src/app/api/flashcards/route";
+import {
+  GET as getFlashcards,
+  POST as rateFlashcard,
+} from "../src/app/api/flashcards/[id]/route";
+import { POST as generateFlashcardPreview } from "../src/app/api/flashcards/generate/route";
 
 const context = new AsyncLocalStorage<string>();
 let platform: Awaited<ReturnType<typeof getPlatformProxy<CloudBindings>>>;
@@ -43,6 +56,72 @@ const origin = {
   Origin: "https://study.example.com",
   "Content-Type": "application/json",
 };
+
+it("keeps free imported decks, ratings and undo private to their D1 account", async () => {
+  const id = crypto.randomUUID();
+  const body = {
+    requestId: id,
+    title: "Private vocabulary",
+    source: "smart-import",
+    cards: [{ front: "Accolade", back: "Recognition", topic: "Vocabulary" }],
+  };
+  const saved = await as("owner", () =>
+    saveFlashcards(
+      new Request("https://study.example.com/api/flashcards", {
+        method: "POST",
+        headers: origin,
+        body: JSON.stringify(body),
+      }),
+    ),
+  );
+  expect(saved.status).toBe(201);
+  const deck = (await saved.json()).deck;
+  const params = { params: Promise.resolve({ id }) };
+  expect(
+    (
+      await as("brother", () =>
+        getFlashcards(
+          new Request("https://study.example.com/api/flashcards/" + id),
+          params,
+        ),
+      )
+    ).status,
+  ).toBe(404);
+  expect(
+    (await (await as("brother", () => listFlashcards())).json()).decks,
+  ).toEqual([]);
+  const rate = (action: string) =>
+    new Request("https://study.example.com/api/flashcards/" + id, {
+      method: "POST",
+      headers: origin,
+      body: JSON.stringify({ action, cardId: deck.cards[0].id }),
+    });
+  expect(
+    (await as("brother", () => rateFlashcard(rate("known"), params))).status,
+  ).toBe(404);
+  expect(
+    (await as("owner", () => rateFlashcard(rate("known"), params))).status,
+  ).toBe(200);
+  const undone = await as("owner", () => rateFlashcard(rate("undo"), params));
+  expect((await undone.json()).deck.active).toEqual(deck.active);
+  const blocked = await as("owner", () =>
+    generateFlashcardPreview(
+      new Request("https://study.example.com/api/flashcards/generate", {
+        method: "POST",
+        headers: origin,
+        body: JSON.stringify({
+          requestId: crypto.randomUUID(),
+          text: "A guide",
+          count: 5,
+        }),
+      }),
+    ),
+  );
+  expect(blocked.status).toBe(403);
+  const state = await as("owner", () => store.readLocalData());
+  expect(state.billingAccounts[0].freeTests).toBe(1);
+  expect(state.billingUsage).toHaveLength(0);
+});
 beforeAll(async () => {
   platform = await getPlatformProxy<CloudBindings>({
     configPath: "wrangler.jsonc",
@@ -61,7 +140,10 @@ beforeAll(async () => {
   );
 });
 beforeEach(async () => {
-  vi.stubEnv("FAMILY_CODE_SHA256", "5014754c782e050b8561badb73161e1b10912c638bd6a5fd8d3b037ab8e67c6f");
+  vi.stubEnv(
+    "FAMILY_CODE_SHA256",
+    "5014754c782e050b8561badb73161e1b10912c638bd6a5fd8d3b037ab8e67c6f",
+  );
   vi.stubEnv("STUDYPREDICT_CLOUD", "1");
   vi.stubEnv("APP_ORIGIN", "https://study.example.com");
   vi.stubEnv("ANTHROPIC_API_KEY", "");
@@ -151,7 +233,11 @@ describe("Cloudflare D1 account isolation", () => {
       await as("owner", () =>
         withAiLock("owner", async () => "section 2", "interpretation"),
       );
-      expect(await as("owner", () => withAiLock("owner", async () => "section 3", "interpretation"))).toBe("section 3");
+      expect(
+        await as("owner", () =>
+          withAiLock("owner", async () => "section 3", "interpretation"),
+        ),
+      ).toBe("section 3");
       expect(
         await as("owner", () => withAiLock("owner", async () => "test")),
       ).toBe("test");
@@ -192,20 +278,33 @@ describe("Cloudflare D1 account isolation", () => {
         "[Document section 1 of 2]\\nDefinitions.\\n\\n[Document section 2 of 2]\\nFormulas.",
         2,
       );
-      const context = await store.getGenerationContext(owner.examId, owner.materialId);
+      const context = await store.getGenerationContext(
+        owner.examId,
+        owner.materialId,
+      );
       expect(context.interpreted).toContain("section 2 of 2");
       expect(context.material).toContain("acceleration");
     });
     await as("brother", async () => {
-      expect((await store.getGenerationContext(brother.examId, brother.materialId)).interpreted).toBeNull();
-      await expect(store.cacheLocalMaterialInterpretation(owner.materialId, "other", 1)).rejects.toMatchObject({ status: 404 });
+      expect(
+        (await store.getGenerationContext(brother.examId, brother.materialId))
+          .interpreted,
+      ).toBeNull();
+      await expect(
+        store.cacheLocalMaterialInterpretation(owner.materialId, "other", 1),
+      ).rejects.toMatchObject({ status: 404 });
     });
   });
   it("resumes per-section PDF summarization and keeps drafts private", async () => {
     const owner = await as("owner", seed);
     const brother = await as("brother", seed);
     const first = await as("owner", () =>
-      store.saveLocalInterpretedSection(owner.materialId, 0, 2, "Definitions and context"),
+      store.saveLocalInterpretedSection(
+        owner.materialId,
+        0,
+        2,
+        "Definitions and context",
+      ),
     );
     expect(first).toEqual({ ready: false, completed: 1, total: 2 });
     expect(
@@ -213,20 +312,46 @@ describe("Cloudflare D1 account isolation", () => {
     ).toHaveLength(1);
     await expect(
       as("brother", () =>
-        store.saveLocalInterpretedSection(owner.materialId, 1, 2, "Private summary"),
+        store.saveLocalInterpretedSection(
+          owner.materialId,
+          1,
+          2,
+          "Private summary",
+        ),
       ),
     ).rejects.toMatchObject({ status: 404 });
     expect(
-      (await as("brother", store.getGenerationContext.bind(null, brother.examId, brother.materialId))).interpreted,
+      (
+        await as(
+          "brother",
+          store.getGenerationContext.bind(
+            null,
+            brother.examId,
+            brother.materialId,
+          ),
+        )
+      ).interpreted,
     ).toBeNull();
     const last = await as("owner", () =>
-      store.saveLocalInterpretedSection(owner.materialId, 1, 2, "Worked examples"),
+      store.saveLocalInterpretedSection(
+        owner.materialId,
+        1,
+        2,
+        "Worked examples",
+      ),
     );
     expect(last.ready).toBe(true);
-    expect((await as("owner", store.getGenerationContext.bind(null, owner.examId, owner.materialId))).interpreted)
-      .toContain("[Document section 2 of 2]");
-    expect((await as("owner", store.readLocalData)).materials[0].interpreted_parts)
-      .toBeUndefined();
+    expect(
+      (
+        await as(
+          "owner",
+          store.getGenerationContext.bind(null, owner.examId, owner.materialId),
+        )
+      ).interpreted,
+    ).toContain("[Document section 2 of 2]");
+    expect(
+      (await as("owner", store.readLocalData)).materials[0].interpreted_parts,
+    ).toBeUndefined();
   });
   it("authorizes deletion and cascades D1 records without affecting other accounts", async () => {
     const owner = await as("owner", seed);
@@ -407,7 +532,13 @@ describe("Cloudflare D1 account isolation", () => {
   it("atomically prevents two requests from spending the same account balance", async () => {
     const attempts = await Promise.allSettled(
       ["owner", "owner"].map((id) =>
-        as(id, () => reserveUsage({ operation: "test", model: "test", pricingVersion: "test" }, 250_000, 250_000)),
+        as(id, () =>
+          reserveUsage(
+            { operation: "test", model: "test", pricingVersion: "test" },
+            250_000,
+            250_000,
+          ),
+        ),
       ),
     );
     expect(attempts.filter((x) => x.status === "fulfilled")).toHaveLength(1);
@@ -418,9 +549,22 @@ describe("Cloudflare D1 account isolation", () => {
   it("keeps billing and usage private and bypasses all credit limits for family", async () => {
     await as("owner", async () => {
       await redeemFamilyCode("test-family-access");
-      const receipt = await reserveUsage({ operation: "test", model: "test", pricingVersion: "test" }, 100_000_000, 100_000_000);
-      await settleUsage(receipt.id, { cost: 90_000_000, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, providerId: "test" });
-      expect((await store.readLocalData()).billingUsage[0].chargedMicros).toBe(0);
+      const receipt = await reserveUsage(
+        { operation: "test", model: "test", pricingVersion: "test" },
+        100_000_000,
+        100_000_000,
+      );
+      await settleUsage(receipt.id, {
+        cost: 90_000_000,
+        input: 1,
+        output: 1,
+        cacheRead: 0,
+        cacheWrite: 0,
+        providerId: "test",
+      });
+      expect((await store.readLocalData()).billingUsage[0].chargedMicros).toBe(
+        0,
+      );
     });
     expect((await as("brother", store.readLocalData)).billingUsage).toEqual([]);
   });
@@ -430,11 +574,33 @@ describe("Cloudflare D1 account isolation", () => {
       const questions = await store.localQuestionsForTest(testId);
       await store.saveLocalAnswers(attemptId, { [questions[0].id]: "ma" }, []);
       const params = { params: Promise.resolve({ id: attemptId }) };
-      expect((await submit(new Request("https://study.example.com/api/attempts/" + attemptId + "/submit", { method: "POST", headers: origin }), params)).status).toBe(200);
-      expect((await (await viewAttempt(new Request("https://study.example.com"), params)).json()).prediction).toBeNull();
+      expect(
+        (
+          await submit(
+            new Request(
+              "https://study.example.com/api/attempts/" + attemptId + "/submit",
+              { method: "POST", headers: origin },
+            ),
+            params,
+          )
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await (
+            await viewAttempt(new Request("https://study.example.com"), params)
+          ).json()
+        ).prediction,
+      ).toBeNull();
       expect((await (await stateRoute()).json()).state.predictions).toEqual([]);
       await redeemFamilyCode("test-family-access");
-      expect((await (await viewAttempt(new Request("https://study.example.com"), params)).json()).prediction).not.toBeNull();
+      expect(
+        (
+          await (
+            await viewAttempt(new Request("https://study.example.com"), params)
+          ).json()
+        ).prediction,
+      ).not.toBeNull();
     });
   });
 });

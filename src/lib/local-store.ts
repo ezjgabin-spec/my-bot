@@ -17,8 +17,13 @@ import type {
 import { AppError } from "./server";
 import type { BillingAccount, LedgerEntry, UsageReceipt } from "./plans";
 import type { FlashcardDeck } from "./flashcard-decks";
+import type { FlashcardDraft } from "./flashcard-generation";
+import { flashcardReviewPriorities } from "./flashcard-import";
 import { isCloud } from "./cloud";
-import { combineDocumentSummaries, MAX_INTERPRETER_SECTIONS } from "./material-interpreter";
+import {
+  combineDocumentSummaries,
+  MAX_INTERPRETER_SECTIONS,
+} from "./material-interpreter";
 
 export type StudyMaterial = {
   id: string;
@@ -40,6 +45,7 @@ export type LocalData = State & {
   version: 1;
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
+  flashcardDrafts: FlashcardDraft[];
   questions: (Question & { test_id: string })[];
 };
 
@@ -57,6 +63,7 @@ export const emptyData = (): LocalData => ({
   answers: [],
   materials: [],
   flashcardDecks: [],
+  flashcardDrafts: [],
   questions: [],
 });
 
@@ -85,6 +92,7 @@ async function load(): Promise<LocalData> {
     parsed.billingLedger ??= [];
     parsed.billingUsage ??= [];
     parsed.flashcardDecks ??= [];
+    parsed.flashcardDrafts ??= [];
     if (
       parsed.version !== 1 ||
       Object.keys(emptyData()).some(
@@ -219,8 +227,13 @@ export async function cacheLocalMaterialInterpretation(
   summary: string,
   sections: number,
 ) {
-  if (!summary || new TextEncoder().encode(summary).length > 120_000 ||
-      !Number.isInteger(sections) || sections < 1 || sections > 24)
+  if (
+    !summary ||
+    new TextEncoder().encode(summary).length > 120_000 ||
+    !Number.isInteger(sections) ||
+    sections < 1 ||
+    sections > 24
+  )
     throw new AppError("The document summary could not be saved.", 413);
   return updateLocalData((data) => {
     const material = data.materials.find((item) => item.id === materialId);
@@ -239,8 +252,13 @@ export async function saveLocalInterpretedSection(
   total: number,
   summary: string,
 ) {
-  if (!Number.isInteger(sectionIndex) || sectionIndex < 0 ||
-      !Number.isInteger(total) || total < 1 || total > MAX_INTERPRETER_SECTIONS)
+  if (
+    !Number.isInteger(sectionIndex) ||
+    sectionIndex < 0 ||
+    !Number.isInteger(total) ||
+    total < 1 ||
+    total > MAX_INTERPRETER_SECTIONS
+  )
     throw new AppError("Invalid document section.", 400);
   if (!summary.trim() || new TextEncoder().encode(summary).length > 5_000)
     throw new AppError("Claude returned an invalid section summary.", 502);
@@ -251,14 +269,21 @@ export async function saveLocalInterpretedSection(
       return { ready: true, completed: total, total };
     const parts = [...(material.interpreted_parts ?? [])];
     if (parts.length !== sectionIndex)
-      throw new AppError("Document interpretation changed. Retry this section.", 409);
+      throw new AppError(
+        "Document interpretation changed. Retry this section.",
+        409,
+      );
     parts.push(summary);
     if (parts.length === total) {
       material.interpreted_text = combineDocumentSummaries(parts);
       material.interpreted_sections = total;
       delete material.interpreted_parts;
     } else material.interpreted_parts = parts;
-    return { ready: !!material.interpreted_text, completed: parts.length, total };
+    return {
+      ready: !!material.interpreted_text,
+      completed: parts.length,
+      total,
+    };
   });
 }
 
@@ -276,15 +301,22 @@ export async function getGenerationContext(examId: string, materialId: string) {
   const subject = data.subjects.find((item) => item.id === exam.subject_id);
   if (!subject) throw new AppError("The exam subject could not be found.", 500);
   const relatedTests = data.tests
-    .filter((test) => test.material_id === materialId || test.exam_id === examId)
+    .filter(
+      (test) => test.material_id === materialId || test.exam_id === examId,
+    )
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 5);
   const previousQuestions = relatedTests.flatMap((test) =>
-    data.questions.filter((question) => question.test_id === test.id)
+    data.questions
+      .filter((question) => question.test_id === test.id)
       .map(({ prompt, topic }) => ({ prompt, topic })),
   );
   return {
     previousQuestions,
+    flashcardPriorities: flashcardReviewPriorities(
+      data.flashcardDecks,
+      materialId,
+    ),
     subject: subject.name,
     interpreted: material.interpreted_text ?? null,
     material: isCloud()

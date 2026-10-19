@@ -106,3 +106,72 @@
 .flash-persistent-note{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:22px;font-size:10px;color:#a9b8d4;text-align:center;line-height:1.6}
 @media(max-width:620px){.flash-saved-groups{grid-template-columns:1fr}.flash-library-grid{grid-template-columns:1fr}.flash-deck-tile{min-height:145px}.flash-lab-head{gap:14px}}
 @media(prefers-reduced-motion:reduce){.flash-deck-tile,.flash-group-details summary{transition:none!important}}
+
+.flash-builder-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+}
+.flash-builder-modes button[aria-pressed="true"] {
+  border-color: #ac91ff;
+  background: linear-gradient(135deg, #8b5cf62b, #3b82f614);
+  box-shadow: inset 0 1px 0 #ffffff25;
+}
+.flash-config > label {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+}
+.flash-config textarea {
+  width: 100%;
+  resize: vertical;
+}
+.flash-preview {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid #8c95bd30;
+}
+.flash-preview-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-height: 650px;
+  overflow: auto;
+  padding: 6px;
+}
+.flash-preview fieldset {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #8c95bd30;
+  border-radius: 16px;
+  background: #0c142240;
+}
+.flash-preview legend {
+  padding: 0 8px;
+  color: #b8a8ee;
+  font-size: 13px;
+}
+.flash-preview label {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.flash-import-skipped {
+  padding: 18px;
+  border: 1px solid #dcb15a66;
+  border-radius: 14px;
+  margin-top: 18px;
+}
+.flash-import-skipped summary {
+  cursor: pointer;
+}
+.flash-import-skipped p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .flash-preview-list {
+    grid-template-columns: 1fr;
+  }
+}

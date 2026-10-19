@@ -83,7 +83,9 @@ const runtime = new Miniflare(
                     summary:
                       "[Page 1] Function composition applies the inner function before the outer function. Keep the domain restrictions.",
                   }
-                : { questions },
+                : input.count
+                  ? { cards: Array.from({ length: input.count }, (_, index) => ({ front: `Function concept ${index + 1}`, back: "Apply the inner function before the outer function.", topic: "Functions" })) }
+                  : { questions },
             },
           ],
           stop_reason: "tool_use",
@@ -292,8 +294,24 @@ try {
   await api(owner, `/api/subjects/${saved.subjects[0].id}`, null, "DELETE");
   assert.deepEqual((await api(owner, "/api/state")).state.subjects, []);
   assert.equal((await api(owner, "/api/materials")).materials.length, 4);
+  const freeStudent = await identity("free-flashcards");
+  const importRequest = { requestId: crypto.randomUUID(), title: "Free imported deck", source: "smart-import", cards: [{ front: "Function", back: "A mapping from inputs to outputs", topic: "Functions" }] };
+  const callsBeforeImport = aiCalls;
+  const imported = await api(freeStudent, "/api/flashcards", importRequest, "POST", 201);
+  assert.equal(aiCalls, callsBeforeImport);
+  await api(owner, `/api/flashcards/${imported.deck.id}`, null, "GET", 404);
+  await api(freeStudent, "/api/flashcards/generate", { requestId: crypto.randomUUID(), text: "Function composition", count: 5 }, "POST", 403);
+  const generation = { requestId: crypto.randomUUID(), text: "Function composition applies the inner function first.", count: 5 };
+  const generated = await api(owner, "/api/flashcards/generate", generation);
+  assert.equal(generated.preview.cards.length, 5);
+  assert.equal((await api(owner, "/api/flashcards")).decks.length, 0);
+  await api(owner, "/api/flashcards/generate", generation);
+  assert.equal(aiCalls, callsBeforeImport + 1);
+  const flashUsage = (await api(owner, "/api/billing")).usage.filter(row => row.operation === "flashcards");
+  assert.equal(flashUsage.length, 1);
+  assert.equal(flashUsage[0].status, "completed");
   console.log(
-    "Cloudflare Worker passed: interpretation, saved summaries used for tests, PDF/DOCX uploads, grading, predictions, private accounts, and deletion. External AI was simulated; no paid API calls made.",
+    "Cloudflare Worker passed: interpretation, tests, uploads, grading, predictions, private accounts, deletion, free flashcard import, paid previews, metering and duplicate-request protection. External AI was simulated; no paid API calls made.",
   );
 } finally {
   await runtime.dispose();
