@@ -25,6 +25,8 @@ import {
   Waves,
   Wallet,
   Layers3,
+  FilePenLine,
+  ReceiptText,
 } from "lucide-react";
 import type { State } from "@/lib/types";
 import type { CSSProperties } from "react";
@@ -120,6 +122,7 @@ const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/create", label: "Create practice test", icon: Plus },
   { href: "/flashcards", label: "Flashcard Studio", icon: Layers3 },
+  { href: "/writing", label: "Writing Lab", icon: FilePenLine },
   { href: "/history", label: "Tests & history", icon: History },
   {
     href: "/analytics",
@@ -224,7 +227,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div className="workspace-label">{appearance.dashboard === "advanced" ? "INTELLIGENCE WORKSPACE" : "EXPLORE YOUR POTENTIAL"}</div>
           <nav aria-label="Main navigation">
-            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined}] : [])].map(({ href, label, icon: Icon }) => (
+            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined},{href:"/admin/ai-costs",label:"AI costs",icon:ReceiptText},{href:"/admin/essays",label:"Essay benchmarks",icon:FilePenLine}] : [])].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
