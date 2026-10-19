@@ -14,3 +14,11 @@ export async function requireSmartFlashcards() {
     );
   return account;
 }
+
+export async function requireFeature(level: "study" | "plus" = "study") {
+  const account = await billingAccount();
+  const plan = activePlan(account);
+  if (!account.family && (plan === "free" || (level === "plus" && plan === "study")))
+    throw new AppError(`${level === "plus" ? "Plus" : "Study or Plus"} access is required for this feature.`, 403);
+  return account;
+}

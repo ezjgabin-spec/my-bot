@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { advancedSettingsSchema } from "./test-settings";
 import { DIFFICULTIES, FORMATS } from "./types";
 export const uuid = z.string().uuid();
 export const examSchema = z.object({
@@ -11,15 +12,13 @@ export const generateSchema = z.object({
   materialId: uuid,
   difficulty: z.enum(DIFFICULTIES),
   format: z.enum(FORMATS),
-  count: z.union([
-    z.literal(10),
-    z.literal(15),
-    z.literal(20),
-    z.literal(30),
-    z.literal(40),
-  ]),
+  count: z.number().int().min(1).max(40),
+  advanced: advancedSettingsSchema.optional(),
   timeLimit: z.number().int().min(1).max(240).nullable(),
   focusTopics: z.array(z.string().max(120)).max(10).default([]),
+}).superRefine((value, ctx) => {
+  if (value.advanced && value.advanced.multipleChoice + value.advanced.written !== value.count)
+    ctx.addIssue({code:"custom", message:"The question distribution must equal the total count."});
 });
 export const generatedQuestionSchema = z
   .object({
@@ -51,7 +50,8 @@ export const generatedQuestionSchema = z
       });
   });
 export const generatedTestSchema = z.object({
-  questions: z.array(generatedQuestionSchema).min(10).max(40),
+  questions: z.array(generatedQuestionSchema).min(1).max(40),
+  passage: z.string().min(100).max(20000).optional(),
 });
 export const saveAnswersSchema = z.object({
   responses: z.record(uuid, z.string().max(12000)),

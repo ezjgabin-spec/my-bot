@@ -267,6 +267,7 @@ export default function AttemptPage({
             />
           </div>
           <div className="question-topic">{question.topic}</div>
+          {question.passage && <section className="panel form-panel"><h3>Shared reading passage</h3><p style={{whiteSpace:"pre-wrap"}}>{question.passage}</p></section>}
           <h2 className="question-prompt">{question.prompt}</h2>
           <fieldset disabled={frozen} className="answer-fieldset">
             <legend className="sr-only">
@@ -552,6 +553,7 @@ function Results({ view }: { view: AttemptView }) {
                       : "Incorrect"}
                 </Badge>
               </div>
+              {q.passage && <details><summary>Shared passage</summary><p style={{whiteSpace:"pre-wrap"}}>{q.passage}</p></details>}
               <h3>{q.prompt}</h3>
               <div className="review-columns">
                 <div>

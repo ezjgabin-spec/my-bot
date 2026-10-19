@@ -1,4 +1,8 @@
 "use client";
+import { AdvancedTestSettings } from "@/components/advanced-test-settings";
+import { defaultAdvanced, type AdvancedSettings } from "@/lib/test-settings";
+import type { z } from "zod";
+import type { generateSchema } from "@/lib/schemas";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -52,6 +56,14 @@ function CreateTest() {
   const [difficulty, setDifficulty] = useState<Difficulty>("Teacher-Level");
   const [format, setFormat] = useState<Format>("mixed");
   const [count, setCount] = useState(20);
+  const [advancedMode, setAdvancedMode] = useState(false);
+  const [advanced, setAdvanced] = useState<AdvancedSettings>(defaultAdvanced);
+  const [presetName, setPresetName] = useState("");
+  const [presets, setPresets] = useState<{id:string;name:string;settings:z.infer<typeof generateSchema>}[]>([]);
+  const paid = entitlement?.family || (entitlement && entitlement.plan !== "free");
+  async function loadPresets(){ try { const r=await api<{presets:typeof presets}>("/api/tests/presets"); setPresets(r.presets); } catch(e){setError((e as Error).message);} }
+  async function savePreset(){try { await api("/api/tests/presets",{method:"POST",body:JSON.stringify({id:crypto.randomUUID(),name:presetName,settings:{examId:examId === "new" ? crypto.randomUUID() : examId,materialId:materialId || crypto.randomUUID(),difficulty,format,count,timeLimit:time?Number(time):null,focusTopics:focus.split(",").map(s=>s.trim()).filter(Boolean),advanced}})}); await loadPresets(); }catch(e){setError((e as Error).message);} }
+
   const [time, setTime] = useState("");
   const [focus, setFocus] = useState(search.get("topics") ?? "");
   const [error, setError] = useState("");
@@ -199,6 +211,7 @@ function CreateTest() {
           difficulty,
           format,
           count,
+          advanced: advancedMode ? advanced : undefined,
           timeLimit: time ? Number(time) : null,
           focusTopics: focus
             .split(",")
@@ -424,16 +437,7 @@ function CreateTest() {
             <div className="form-grid">
               <label>
                 Number of questions
-                <select
-                  value={count}
-                  onChange={(e) => setCount(Number(e.target.value))}
-                >
-                  {[10, 15, 20, 30, 40].map((n) => (
-                    <option key={n} value={n}>
-                      {n} questions
-                    </option>
-                  ))}
-                </select>
+                <input type="number" min={1} max={40} value={count} onChange={e=>setCount(Number(e.target.value))}/>
               </label>
               <label>
                 Question format
@@ -471,6 +475,10 @@ function CreateTest() {
                 />
               </label>
             </div>
+            <label><input type="checkbox" disabled={!paid} checked={advancedMode} onChange={e=>setAdvancedMode(e.target.checked)}/> Advanced builder · Study / Plus</label>
+            {advancedMode && <><AdvancedTestSettings value={advanced} onChange={setAdvanced}/><p className="helper">Distribution total: {advanced.multipleChoice+advanced.written} / {count}. These must match.</p>
+            <label>Preset name<input maxLength={100} value={presetName} onChange={e=>setPresetName(e.target.value)}/></label><div className="button-row"><button type="button" className="button secondary" onClick={()=>void savePreset()}>Save settings</button><button type="button" className="button secondary" onClick={()=>void loadPresets()}>Load saved settings</button></div>
+            {presets.map(p=><div key={p.id}><button type="button" className="button secondary small" onClick={()=>{setAdvanced(p.settings.advanced ?? defaultAdvanced);setCount(p.settings.count);setDifficulty(p.settings.difficulty);setFormat(p.settings.format);setTime(p.settings.timeLimit?.toString() ?? "");setFocus(p.settings.focusTopics.join(", "));}}>{p.name}</button><button type="button" className="button secondary small" onClick={()=>void api("/api/tests/presets",{method:"DELETE",body:JSON.stringify({id:p.id})}).then(loadPresets).catch(e=>setError(e.message))}>Delete preset</button></div>)}</>}
             <label>
               Focus topics <span className="optional">optional</span>
               <input
