@@ -131,6 +131,7 @@ export type LedgerEntry = {
 export type UsageReceipt = {
   id: string;
   operation: "test" | "grading" | "interpretation" | "flashcards" | "handwriting" | "writing";
+  planAtRequest?: PlanId;
   model: string;
   pricingVersion: string;
   at: string;
