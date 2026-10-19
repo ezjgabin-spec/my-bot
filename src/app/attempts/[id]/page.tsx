@@ -12,6 +12,7 @@ import {
   Target,
   LoaderCircle,
 } from "lucide-react";
+import { MathWorkspace } from "@/components/math-workspace";
 import { api, percent } from "@/lib/client";
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage, Badge } from "@/components/ui";
@@ -22,7 +23,8 @@ export default function AttemptPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { refresh } = useWorkspace();
+  const { refresh, entitlement } = useWorkspace();
+  const [mathPending, setMathPending] = useState(false);
   const [view, setView] = useState<AttemptView | null>(null);
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [flags, setFlags] = useState<string[]>([]);
@@ -320,10 +322,11 @@ export default function AttemptPage({
               </label>
             )}
           </fieldset>
+          {question.kind !== "multiple_choice" && (entitlement?.family || (entitlement && entitlement.plan !== "free")) && <MathWorkspace key={question.id} attemptId={id} questionId={question.id} readOnly={frozen} onPending={setMathPending} onConfirm={text=>edit({...responses,[question.id]:text},flags)}/>}
           <div className="question-controls">
             <button
               className="button secondary small"
-              disabled={index === 0}
+              disabled={index === 0 || mathPending}
               onClick={() => setIndex((i) => i - 1)}
             >
               <ArrowLeft size={16} />
@@ -347,7 +350,7 @@ export default function AttemptPage({
             </button>
             <button
               className="button secondary small"
-              disabled={index === view.questions.length - 1}
+              disabled={index === view.questions.length - 1 || mathPending}
               onClick={() => setIndex((i) => i + 1)}
             >
               Next
@@ -367,6 +370,7 @@ export default function AttemptPage({
                 aria-label={`Question ${i + 1}${flags.includes(q.id) ? ", flagged" : ""}${responses[q.id]?.trim() ? ", answered" : ""}`}
                 aria-current={i === index ? "step" : undefined}
                 className={`${i === index ? "current" : ""} ${responses[q.id]?.trim() ? "answered" : ""} ${flags.includes(q.id) ? "is-flagged" : ""}`}
+                disabled={mathPending}
                 onClick={() => setIndex(i)}
               >
                 {i + 1}
@@ -388,7 +392,7 @@ export default function AttemptPage({
           </p>
           <button
             className="button full"
-            disabled={busy}
+            disabled={busy || mathPending}
             onClick={() => void submit()}
           >
             <Send size={16} />
@@ -565,6 +569,7 @@ function Results({ view }: { view: AttemptView }) {
                   <p>{q.answer_key}</p>
                 </div>
               </div>
+              {q.kind !== "multiple_choice" && <details><summary>Original handwritten work</summary><MathWorkspace readOnly attemptId={view.attempt.id} questionId={q.id}/></details>}
               <div className="feedback">
                 <strong>Feedback</strong>
                 <p>{r.feedback}</p>

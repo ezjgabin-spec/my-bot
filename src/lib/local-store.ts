@@ -46,6 +46,8 @@ export type LocalData = State & {
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
   flashcardDrafts: FlashcardDraft[];
+  mathWork: import("./math-work").MathWork[];
+  featureRequests: {id:string;fingerprint:string;status:"running"|"ready"|"failed";result?:unknown;createdAt:string}[];
   testPresets: {id: string; name: string; settings: import("zod").z.infer<typeof import("./schemas").generateSchema>}[];
   questions: (Question & { test_id: string })[];
 };
@@ -65,6 +67,8 @@ export const emptyData = (): LocalData => ({
   materials: [],
   flashcardDecks: [],
   flashcardDrafts: [],
+  mathWork: [],
+  featureRequests: [],
   testPresets: [],
   questions: [],
 });
@@ -95,6 +99,8 @@ async function load(): Promise<LocalData> {
     parsed.billingUsage ??= [];
     parsed.flashcardDecks ??= [];
     parsed.flashcardDrafts ??= [];
+    parsed.mathWork ??= [];
+    parsed.featureRequests ??= [];
     parsed.testPresets ??= [];
     if (
       parsed.version !== 1 ||
@@ -624,6 +630,7 @@ function removeTests(data: LocalData, testIds: Set<string>) {
   data.questions = data.questions.filter((q) => !testIds.has(q.test_id));
   data.attempts = data.attempts.filter((a) => !attempts.has(a.id));
   data.answers = data.answers.filter((a) => !attempts.has(a.attempt_id ?? ""));
+  data.mathWork = data.mathWork.filter(w=>!attempts.has(w.attemptId));
   data.predictions = data.predictions.filter(
     (p) => !attempts.has(p.attempt_id),
   );
