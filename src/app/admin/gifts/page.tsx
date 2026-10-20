@@ -136,7 +136,7 @@ export default function OwnerGifts() {
               <option value={1000}>$10.00</option>
             </select>
           </label>
-          <p className="helper">The gift ends when the date arrives or its AI budget is spent. Prior purchases and saved schoolwork are unaffected. These budgets are your potential Claude expense, not customer revenue.</p>
+          <p className="helper">Premium access ends at the expiration date; AI requests stop when the gifted allowance runs out unless the account has other credits. These are wallet limits, not a guaranteed ceiling on provider overruns. Prior purchases and schoolwork are unaffected.</p>
           <button type="submit" className="button" disabled={busy||!recipient.trim()}>
             <Gift size={16}/>{busy?"Saving…":"Gift access"}
           </button>
