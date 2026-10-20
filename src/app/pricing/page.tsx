@@ -21,10 +21,11 @@ import {
   type UsageReceipt,
 } from "@/lib/plans";
 import { PageHeader, ErrorMessage } from "@/components/ui";
-import { CodeRedemption } from "@/components/code-redemption";
+
 type Summary = {
   plan: PlanId;
   family: boolean;
+  gift?: {tier:"study"|"plus";expiresAt:string;remainingMicros:number;initialMicros:number}|null;
   balance: Balances;
   freeTests: number;
   nextFreeAt: string;
@@ -133,6 +134,8 @@ export default function Pricing() {
                 {data.freeTests} free test available · next refresh{" "}
                 {new Date(data.nextFreeAt).toLocaleDateString()}
               </p>
+            ) : data.gift && Date.parse(data.gift.expiresAt)>Date.now() && !data.paidUntil ? (
+              <p>Gifted {data.gift.tier==="plus"?"StudyBot Plus":"StudyBot"} through {new Date(data.gift.expiresAt).toLocaleDateString()} · {"$"+(data.gift.remainingMicros/1_000_000).toFixed(2)} AI budget remaining</p>
             ) : (
               <p>
                 Current paid period ends{" "}
@@ -299,7 +302,7 @@ export default function Pricing() {
           or long written exams may need credits.
         </p>
       </section>
-      <CodeRedemption onRedeem={() => void load()} />
+      <section className="panel form-panel"><h2>Personal beta access</h2><p className="helper">Shared permanent access codes are retired. For beta testing, the StudyBot owner can grant a private, limited trial directly to your signed-in email account. Existing schoolwork is never deleted when a gift expires.</p></section>
       <section className="panel form-panel">
         <div className="billing-section-heading">
           <h2>Recent AI usage</h2>
