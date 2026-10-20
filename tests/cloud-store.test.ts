@@ -216,14 +216,20 @@ describe("Cloudflare D1 account isolation", () => {
       method: "POST", headers: origin, body: JSON.stringify(payload),
     });
     const grant = {action:"grant",email:"brother@example.com",tier:"plus",days:14,budgetCents:200};
-    expect((await as("brother", () => giftAction(request(grant)))).status).toBe(403);
-    expect((await as("brother", () => listGifts())).status).toBe(403);
-    expect((await as("owner", () => giftAction(request({...grant,email:"unknown@example.com"})))).status).toBe(404);
+    const nonowner = await as("brother", () => giftAction(request(grant)));
+    expect(nonowner.status).toBe(403);
+    const nonownerList = await as("brother", () => listGifts());
+    expect(nonownerList.status).toBe(403);
+    const missing = await as("owner", () => giftAction(request({...grant,email:"unknown@example.com"})));
+    expect(missing.status).toBe(404);
     await as("owner", () => billingAccount());
-    expect((await as("owner", () => giftAction(request({...grant,email:"owner@example.com"})))).status).toBe(400);
-    expect((await as("owner", () => giftAction(request(grant)))).status).toBe(200);
-    expect((await as("brother", async () => (await billingAccount()).gift?.remainingMicros)).toBe(2_000_000);
-    expect((await as("brother", async () => (await billingAccount()).gift?.tier)).toBe("plus");
+    const selfGrant = await as("owner", () => giftAction(request({...grant,email:"owner@example.com"})));
+    expect(selfGrant.status).toBe(400);
+    const issued = await as("owner", () => giftAction(request(grant)));
+    expect(issued.status).toBe(200);
+    const afterGrant = await as("brother", () => billingAccount());
+    expect(afterGrant.gift?.remainingMicros).toBe(2_000_000);
+    expect(afterGrant.gift?.tier).toBe("plus");
     const receipt = await as("brother", () => reserveUsage(
       {operation:"test",model:"test",pricingVersion:"test"}, 100_000, 100_000,
     ));
@@ -231,13 +237,15 @@ describe("Cloudflare D1 account isolation", () => {
     await as("brother", () => settleUsage(receipt.id, {
       cost:70_000,input:1,output:1,cacheRead:0,cacheWrite:0,providerId:"test",
     }));
-    expect((await as("brother", async () => (await billingAccount()).gift?.remainingMicros)).toBe(1_930_000);
-    expect((await as("owner", () => giftAction(request({action:"revoke-gift",email:"brother@example.com"})))).status).toBe(200);
-    expect((await as("brother", async () => (await billingAccount()).gift)).toBeUndefined();
-    expect((await as("brother", async () => (await billingAccount()).balance.purchased)).toBe(0);
-    expect((await as("brother", () => store.readLocalData())).toMatchObject({
-      exams:[{id:savedExam.id, name:"Trial material"}],
-    });
+    const afterUsage = await as("brother", () => billingAccount());
+    expect(afterUsage.gift?.remainingMicros).toBe(1_930_000);
+    const revoked = await as("owner", () => giftAction(request({action:"revoke-gift",email:"brother@example.com"})));
+    expect(revoked.status).toBe(200);
+    const afterRevoke = await as("brother", () => billingAccount());
+    expect(afterRevoke.gift).toBeUndefined();
+    expect(afterRevoke.balance.purchased).toBe(0);
+    const saved = await as("brother", () => store.readLocalData());
+    expect(saved).toMatchObject({exams:[{id:savedExam.id, name:"Trial material"}]});
   });
   it("lets the owner revoke a legacy family's unlimited entitlement, not its schoolwork", async () => {
     await as("brother", () => redeemFamilyCode("test-family-access"));
