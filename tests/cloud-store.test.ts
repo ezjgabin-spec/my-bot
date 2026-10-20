@@ -17,6 +17,7 @@ import { POST as submit } from "../src/app/api/attempts/[id]/submit/route";
 import { GET as viewAttempt } from "../src/app/api/attempts/[id]/route";
 import { POST as upload } from "../src/app/api/materials/route";
 import { GET as stateRoute } from "../src/app/api/state/route";
+import { POST as giftAction, GET as listGifts } from "../src/app/api/admin/gifts/route";
 import { DELETE as deleteSubject } from "../src/app/api/subjects/[id]/route";
 import { DELETE as deleteTest } from "../src/app/api/tests/[id]/route";
 import { DELETE as deleteExam } from "../src/app/api/exams/[id]/route";
@@ -25,6 +26,7 @@ import {
   reserveUsage,
   settleUsage,
   redeemFamilyCode,
+  billingAccount,
 } from "../src/lib/billing";
 import {
   POST as saveFlashcards,
@@ -146,6 +148,7 @@ beforeEach(async () => {
   );
   // Existing redemption coverage deliberately enables the retired legacy flow.
   vi.stubEnv("ENABLE_LEGACY_FAMILY_CODES", "1");
+  vi.stubEnv("BILLING_ADMIN_EMAILS", "owner@example.com");
   vi.stubEnv("STUDYPREDICT_CLOUD", "1");
   vi.stubEnv("APP_ORIGIN", "https://study.example.com");
   vi.stubEnv("ANTHROPIC_API_KEY", "");
@@ -206,6 +209,50 @@ async function seed() {
   };
 }
 describe("Cloudflare D1 account isolation", () => {
+  it("authorizes owner gifting only, binds it to one verified account, and preserves data on revoke", async () => {
+    await as("brother", () => billingAccount());
+    const savedExam = await as("brother", () => store.createLocalExam({subject:"History",name:"Trial material"}));
+    const request = (payload: unknown) => new Request("https://study.example.com/api/admin/gifts", {
+      method: "POST", headers: origin, body: JSON.stringify(payload),
+    });
+    const grant = {action:"grant",email:"brother@example.com",tier:"plus",days:14,budgetCents:200};
+    expect((await as("brother", () => giftAction(request(grant)))).status).toBe(403);
+    expect((await as("brother", () => listGifts())).status).toBe(403);
+    expect((await as("owner", () => giftAction(request({...grant,email:"unknown@example.com"})))).status).toBe(404);
+    expect((await as("owner", () => giftAction(request({...grant,email:"owner@example.com"})))).status).toBe(404);
+    expect((await as("owner", () => giftAction(request(grant)))).status).toBe(200);
+    expect((await as("brother", async () => (await billingAccount()).gift?.remainingMicros)).toBe(2_000_000);
+    expect((await as("brother", async () => (await billingAccount()).gift?.tier)).toBe("plus");
+    const receipt = await as("brother", () => reserveUsage(
+      {operation:"test",model:"test",pricingVersion:"test"}, 100_000, 100_000,
+    ));
+    expect(receipt.giftReservation?.amountMicros).toBe(100_000);
+    await as("brother", () => settleUsage(receipt.id, {
+      cost:70_000,input:1,output:1,cacheRead:0,cacheWrite:0,providerId:"test",
+    }));
+    expect((await as("brother", async () => (await billingAccount()).gift?.remainingMicros)).toBe(1_930_000);
+    expect((await as("owner", () => giftAction(request({action:"revoke-gift",email:"brother@example.com"})))).status).toBe(200);
+    expect((await as("brother", async () => (await billingAccount()).gift)).toBeUndefined();
+    expect((await as("brother", async () => (await billingAccount()).balance.purchased)).toBe(0);
+    expect((await as("brother", () => store.readLocalData())).toMatchObject({
+      exams:[{id:savedExam, name:"Trial material"}],
+    });
+  });
+  it("lets the owner revoke a legacy family's unlimited entitlement, not its schoolwork", async () => {
+    await as("brother", () => redeemFamilyCode("test-family-access"));
+    const before = await as("brother", () => billingAccount());
+    expect(before.family).toBe(true);
+    const response = await as("owner", () => giftAction(new Request(
+      "https://study.example.com/api/admin/gifts",
+      {method:"POST",headers:origin,body:JSON.stringify({action:"revoke-family",email:"brother@example.com"})},
+    )));
+    expect(response.status).toBe(200);
+    expect((await as("brother", () => billingAccount())).family).toBe(false);
+    expect((await as("brother", () => store.readLocalData())).billingLedger.some(
+      row => row.kind === "family-revoke",
+    )).toBe(true);
+  });
+
   it("rejects the old shared code by default even when a hash remains configured", async () => {
     vi.stubEnv("ENABLE_LEGACY_FAMILY_CODES", "0");
     await expect(as("owner", () => redeemFamilyCode("test-family-access")))
