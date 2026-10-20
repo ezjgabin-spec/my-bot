@@ -37,5 +37,5 @@ export type WritingRevision = {
 export type WritingDocument = {
   id:string;title:string;sourceText:string;assignment:string;rubric:string;
   teacherFeedback:string;materialId:string|null;createdAt:string;updatedAt:string;
-  revisions:WritingRevision[];actualTeacherGrade?:number;actualTeacherNotes?:string;
+  revisions:WritingRevision[];actualTeacherGrade?:number;actualTeacherLetter?:string;actualTeacherNotes?:string;actualTeacherRecordedAt?:string;
 };

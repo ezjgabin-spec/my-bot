@@ -6,6 +6,7 @@ import {api} from "@/lib/client";
 import {useWorkspace} from "@/components/workspace";
 import type {WritingDocument,WritingInput,WritingRevision} from "@/lib/writing-types";
 import {WritingPredictionReport} from "@/components/writing-prediction-report";
+import {PerformanceChart} from "@/components/charts";
 import {targetGrades} from "@/lib/writing-types";
 import "./writing.css";
 
@@ -35,6 +36,7 @@ export default function WritingPage(){
  const [quote,setQuote]=useState<{estimatedCredits:number;estimatedDollars:number}|null>(null);
  const [result,setResult]=useState<WritingRevision|null>(null);
  const [grade,setGrade]=useState("");
+ const [teacherLetter,setTeacherLetter]=useState("");
  const [actualNotes,setActualNotes]=useState("");
  const [error,setError]=useState("");
  const [busy,setBusy]=useState(false);
@@ -50,7 +52,7 @@ export default function WritingPage(){
    if(doc){
     setCurrent(doc.id);setTitle(doc.title);setText(doc.sourceText);
     setAssignment(doc.assignment);setRubric(doc.rubric);setTeacherFeedback(doc.teacherFeedback);
-    setMaterialId(undefined);setGrade(doc.actualTeacherGrade?.toString()??"");setActualNotes(doc.actualTeacherNotes??"");
+    setMaterialId(undefined);setGrade(doc.actualTeacherGrade?.toString()??"");setTeacherLetter(doc.actualTeacherLetter??"");setActualNotes(doc.actualTeacherNotes??"");
     setResult(doc.revisions.slice().reverse().find(rev=>rev.action==="grade"&&rev.feedback)??doc.revisions.at(-1)??null);
    }
   } catch(e) {setError((e as Error).message);}
@@ -60,8 +62,8 @@ export default function WritingPage(){
  function chooseDoc(id:string){
   const d=docs.find(d=>d.id===id);
   setCurrent(id);setResult(d?.revisions.at(-1)??null);
-  if(d){setTitle(d.title);setText(d.sourceText);setAssignment(d.assignment);setRubric(d.rubric);setTeacherFeedback(d.teacherFeedback);setMaterialId(undefined);setGrade(d.actualTeacherGrade?.toString()??"");setActualNotes(d.actualTeacherNotes??"");}
-  else{setTitle("My essay");setText("");setAssignment("");setRubric("");setTeacherFeedback("");setMaterialId(undefined);setResult(null);setGrade("");setActualNotes("");}
+  if(d){setTitle(d.title);setText(d.sourceText);setAssignment(d.assignment);setRubric(d.rubric);setTeacherFeedback(d.teacherFeedback);setMaterialId(undefined);setGrade(d.actualTeacherGrade?.toString()??"");setTeacherLetter(d.actualTeacherLetter??"");setActualNotes(d.actualTeacherNotes??"");}
+  else{setTitle("My essay");setText("");setAssignment("");setRubric("");setTeacherFeedback("");setMaterialId(undefined);setResult(null);setGrade("");setTeacherLetter("");setActualNotes("");}
   resetQuote();
  }
  const payload=():WritingInput=>({requestId:requestId.current??crypto.randomUUID(),...(current?{essayId:current}:{}),...(materialId?{materialId}:{}),title,text:current?"":text,assignment,rubric,teacherFeedback,action,tone,targetGrade,autoHumanize});
@@ -93,13 +95,33 @@ export default function WritingPage(){
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
  async function saveActual(){
-  setBusy(true);setError("");
+  if(busy||!current)return;
+  setBusy(true);setError("");setNotice("");
   try{
-   await api("/api/writing/actual",{method:"POST",body:JSON.stringify({essayId:current,grade:Number(grade),teacherNotes:actualNotes})});
-   await load();setNotice("Real teacher grade saved separately from the AI's earlier estimate.");
+   const payload={
+    essayId:current,
+    ...(grade.trim()!==""?{grade:Number(grade)}:{}),
+    ...(teacherLetter?{letter:teacherLetter}:{}),
+    teacherNotes:actualNotes,
+   };
+   const response=await api<{saved:boolean;essay:WritingDocument}>("/api/writing/actual",{method:"POST",body:JSON.stringify(payload)});
+   setDocs(old=>old.map(doc=>doc.id===response.essay.id?response.essay:doc));
+   setNotice("Teacher grade saved. Your earlier forecast is unchanged; no AI credits were used.");
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
  const graded=result?.feedback;
+ const pairedEssays=docs.flatMap(doc=>{
+  if(typeof doc.actualTeacherGrade!=="number")return [];
+  const forecasts=doc.revisions.filter(r=>
+   r.action==="grade"&&r.feedback&&(!doc.actualTeacherRecordedAt||r.createdAt<=doc.actualTeacherRecordedAt)
+  ).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+  const f=forecasts[0]?.feedback;
+  return f?[{id:doc.id,name:doc.title.slice(0,18),predicted:(f.lower+f.upper)/2,actual:doc.actualTeacherGrade,createdAt:forecasts[0].createdAt}]:[];
+ }).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+ const averageError=pairedEssays.length
+  ? pairedEssays.reduce((sum,row)=>sum+Math.abs(row.actual-row.predicted),0)/pairedEssays.length
+  : null;
+
  return <div className="writing-lab">
   <header className="writing-header"><span className="eyebrow"><Sparkles size={14}/> WRITING LAB</span><h1>Strengthen your writing. Understand your grade.</h1><p>Get an independent grade estimate, compare revisions, and save real teacher feedback. Grade predictions are estimates, not guaranteed school results.</p></header>
   {!allowed?<section className="panel form-panel"><h2><BookOpen size={21}/> Writing Lab is a Study feature</h2><p>Essay grading starts with Study. Rewriting, model essays and Humanize require Plus. No AI request is made until you confirm.</p><Link href="/pricing" className="button">View plans <ArrowRight size={16}/></Link></section>:
@@ -125,9 +147,11 @@ export default function WritingPage(){
     {notice&&<p className="notice" role="status">{notice}</p>}
     {!quote?<button type="button" className="button" disabled={busy||!aiReady} onClick={()=>void preview()}>{busy?"Preparing estimate…":"Review estimated credit cost"} <ArrowRight size={16}/></button>:
     <section className="writing-quote"><strong>Estimated AI usage: {quote.estimatedCredits.toFixed(2)} credits (about ${quote.estimatedDollars.toFixed(2)})</strong><p>Conservative planning estimate, not a guaranteed cap. Actual Claude tokens determine your charge; temporary wallet reservations may be higher. {autoHumanize?"Includes the second Humanize pass.":""}</p><div className="button-row"><button type="button" className="button secondary small" onClick={()=>setQuote(null)}>Edit</button><button type="button" className="button" disabled={busy} onClick={()=>void submit()}>{busy?"Working…":`Confirm ${action} · use credits`}</button></div></section>}
-    {result&&<section className="writing-result"><h2>{result.action==="grade"?"Grade estimate":result.action==="model"?"Illustrative model essay":"Revised writing"}</h2>{graded?<WritingPredictionReport feedback={graded} actualGrade={docs.find(d=>d.id===current)?.actualTeacherGrade}/>:<><div className="writing-compare"><div><h3>Original writing</h3><p className="writing-output">{docs.find(d=>d.id===current)?.sourceText}</p></div><div><h3>{result.action==="model"?"Illustrative example":"Revised version"}</h3><p className="writing-output">{result.result}</p></div></div><p className="helper">Model essays are educational examples, not guaranteed grades. Verify all source evidence before using a revision.</p></>}
+    {result&&<section className="writing-result"><h2>{result.action==="grade"?"Grade estimate":result.action==="model"?"Illustrative model essay":"Revised writing"}</h2>{graded?<WritingPredictionReport feedback={graded} actualGrade={docs.find(d=>d.id===current)?.actualTeacherGrade} actualLetter={docs.find(d=>d.id===current)?.actualTeacherLetter}/>:<><div className="writing-compare"><div><h3>Original writing</h3><p className="writing-output">{docs.find(d=>d.id===current)?.sourceText}</p></div><div><h3>{result.action==="model"?"Illustrative example":"Revised version"}</h3><p className="writing-output">{result.result}</p></div></div><p className="helper">Model essays are educational examples, not guaranteed grades. Verify all source evidence before using a revision.</p></>}
     </section>}
-    {current&&docs.find(d=>d.id===current)?.revisions.some(r=>r.action==="grade")&&<section className="writing-actual"><h2>Compare with teacher's actual grade</h2><p className="helper">The grade is entered only after the independent AI estimate has been saved.</p><label>Real teacher grade (%)<input type="number" min={0} max={100} step="0.1" value={grade} onChange={e=>setGrade(e.target.value)}/></label><label>Teacher comments (optional)<textarea rows={3} value={actualNotes} onChange={e=>setActualNotes(e.target.value)}/></label><button className="button secondary" disabled={busy||grade===""||Number(grade)<0||Number(grade)>100} onClick={()=>void saveActual()}>Save real grade</button></section>}
+    {current&&docs.find(d=>d.id===current)?.revisions.some(r=>r.action==="grade")&&<section className="writing-actual"><h2>Compare with teacher's actual grade</h2><p className="helper">Enter your teacher's letter grade, exact percentage, or both. A letter such as B- is enough; no AI credits are used.</p><div className="writing-grade-inputs"><label>Teacher letter grade<select value={teacherLetter} onChange={e=>setTeacherLetter(e.target.value)}><option value="">Not provided</option>{targetGrades.map(g=><option key={g} value={g}>{g}</option>)}</select></label><label>Exact percentage (optional)<input type="number" min={0} max={100} step="any" placeholder="e.g. 81.5" value={grade} onChange={e=>setGrade(e.target.value)}/></label></div><label>Teacher comments (optional)<textarea rows={3} value={actualNotes} onChange={e=>setActualNotes(e.target.value)}/></label><button type="button" className="button secondary" disabled={busy||(grade.trim()===""&&!teacherLetter)||(grade.trim()!==""&&(!Number.isFinite(Number(grade))||Number(grade)<0||Number(grade)>100))} onClick={()=>void saveActual()}>{busy?"Saving grade…":"Save teacher grade"}</button></section>}
+
+   {pairedEssays.length>0&&<section className="writing-actual"><h2>Essay prediction accuracy over time</h2><p className="helper">Each dot compares a saved forecast midpoint to the exact percentage the teacher gave. Letter-only grades are excluded from numeric calculations, and the original forecasts stay unchanged.</p><div className="writing-analytics-stat"><strong>{pairedEssays.length}</strong><span>Paired essays</span><strong>{averageError?.toFixed(1)} pp</strong><span>Average absolute error</span></div><PerformanceChart actual data={pairedEssays.map(row=>({name:row.name,predicted:row.predicted,actual:row.actual}))}/><div className="table-wrap"><table><thead><tr><th>Essay</th><th>Predicted midpoint</th><th>Teacher %</th><th>Difference</th></tr></thead><tbody>{pairedEssays.map(row=><tr key={row.id}><td>{row.name}</td><td>{row.predicted.toFixed(1)}%</td><td>{row.actual.toFixed(1)}%</td><td>{Math.abs(row.actual-row.predicted).toFixed(1)} pp</td></tr>)}</tbody></table></div></section>}
    </section>
    <aside className="panel form-panel writing-history"><h2>Revision history</h2><p className="helper">Original source, AI feedback and rewrites are saved per account.</p>{docs.find(d=>d.id===current)?.revisions.slice().reverse().map(r=><button key={r.id} className="writing-history-entry" onClick={()=>setResult(r)}><strong>{r.action}{r.targetGrade?` · ${r.targetGrade}`:""}</strong><small>{new Date(r.createdAt).toLocaleString()}</small></button>)}{!current&&<p className="helper">Choose a saved essay or generate your first grade estimate.</p>}</aside>
   </div>}

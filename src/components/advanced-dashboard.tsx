@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "./workspace";
 import { PerformanceChart } from "./charts";
-import { WritingDashboard } from "./writing-dashboard";
+import { RecentAssignments } from "./recent-assignments";
 import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 
@@ -137,6 +137,8 @@ export function AdvancedDashboard() {
         </Link>
       </div>
 
+      <RecentAssignments />
+
       <section className="advanced-hero advanced-card">
         <div className="advanced-hero-text">
           <span className="advanced-kicker">
@@ -164,7 +166,7 @@ export function AdvancedDashboard() {
         </div>
         <div className="advanced-forecast">
           <div className="advanced-forecast-top">
-            <Radar size={19} /> LATEST SCHOOL GRADE ESTIMATE{" "}
+            <Radar size={19} /> LATEST TEST GRADE ESTIMATE{" "}
             <span>FORECAST</span>
           </div>
           <div className="advanced-big-number">
@@ -186,8 +188,6 @@ export function AdvancedDashboard() {
           )}
         </div>
       </section>
-
-      <WritingDashboard />
 
       <div className="advanced-stats">
         {metrics.map(({ label, value, detail, icon: Icon }, i) => (
