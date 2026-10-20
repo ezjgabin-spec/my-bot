@@ -144,6 +144,8 @@ beforeEach(async () => {
     "FAMILY_CODE_SHA256",
     "5014754c782e050b8561badb73161e1b10912c638bd6a5fd8d3b037ab8e67c6f",
   );
+  // Existing redemption coverage deliberately enables the retired legacy flow.
+  vi.stubEnv("ENABLE_LEGACY_FAMILY_CODES", "1");
   vi.stubEnv("STUDYPREDICT_CLOUD", "1");
   vi.stubEnv("APP_ORIGIN", "https://study.example.com");
   vi.stubEnv("ANTHROPIC_API_KEY", "");
@@ -204,6 +206,13 @@ async function seed() {
   };
 }
 describe("Cloudflare D1 account isolation", () => {
+  it("rejects the old shared code by default even when a hash remains configured", async () => {
+    vi.stubEnv("ENABLE_LEGACY_FAMILY_CODES", "0");
+    await expect(as("owner", () => redeemFamilyCode("test-family-access")))
+      .rejects.toMatchObject({status:410});
+    expect((await as("owner", () => store.readLocalData())).billingAccounts).toEqual([]);
+  });
+
   it("protects interpretation and rejects oversized text before calling AI", async () => {
     const request = (text: string, requestOrigin = origin.Origin) =>
       new Request("https://study.example.com/api/materials/interpret", {
