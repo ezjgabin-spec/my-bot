@@ -131,7 +131,7 @@ export async function billingSummary() {
       plan: activePlan(a),
       family: a.family,
       balance: a.balance,
-      gift: a.gift ?? null,
+      gift: a.gift ? { tier: a.gift.tier, expiresAt: a.gift.expiresAt, remainingMicros: a.gift.remainingMicros, initialMicros: a.gift.initialMicros } : null,
       freeTests: a.freeTests,
       nextFreeAt: a.nextFreeAt,
       paidUntil: a.paidUntil,
