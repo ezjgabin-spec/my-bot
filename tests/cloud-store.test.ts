@@ -219,7 +219,8 @@ describe("Cloudflare D1 account isolation", () => {
     expect((await as("brother", () => giftAction(request(grant)))).status).toBe(403);
     expect((await as("brother", () => listGifts())).status).toBe(403);
     expect((await as("owner", () => giftAction(request({...grant,email:"unknown@example.com"})))).status).toBe(404);
-    expect((await as("owner", () => giftAction(request({...grant,email:"owner@example.com"})))).status).toBe(404);
+    await as("owner", () => billingAccount());
+    expect((await as("owner", () => giftAction(request({...grant,email:"owner@example.com"})))).status).toBe(400);
     expect((await as("owner", () => giftAction(request(grant)))).status).toBe(200);
     expect((await as("brother", async () => (await billingAccount()).gift?.remainingMicros)).toBe(2_000_000);
     expect((await as("brother", async () => (await billingAccount()).gift?.tier)).toBe("plus");
@@ -235,7 +236,7 @@ describe("Cloudflare D1 account isolation", () => {
     expect((await as("brother", async () => (await billingAccount()).gift)).toBeUndefined();
     expect((await as("brother", async () => (await billingAccount()).balance.purchased)).toBe(0);
     expect((await as("brother", () => store.readLocalData())).toMatchObject({
-      exams:[{id:savedExam, name:"Trial material"}],
+      exams:[{id:savedExam.id, name:"Trial material"}],
     });
   });
   it("lets the owner revoke a legacy family's unlimited entitlement, not its schoolwork", async () => {
