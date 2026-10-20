@@ -9,7 +9,7 @@ export async function GET() {
     await requireUser();
     await requireFeature();
     const data = await readLocalData();
-    const latest = data.writingDocuments
+    const history = data.writingDocuments
       .flatMap((essay) => essay.revisions
         .filter((revision) => revision.action === "grade" && revision.feedback)
         .map((revision) => ({
@@ -18,9 +18,12 @@ export async function GET() {
           createdAt: revision.createdAt,
           feedback: revision.feedback!,
           actualTeacherGrade: essay.actualTeacherGrade,
+          actualTeacherLetter: essay.actualTeacherLetter,
+          actualTeacherRecordedAt: essay.actualTeacherRecordedAt,
         })))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
-    return NextResponse.json({ latest }, {
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 12);
+    const latest = history[0] ?? null;
+    return NextResponse.json({ latest, history }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
