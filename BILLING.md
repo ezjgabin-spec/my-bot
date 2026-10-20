@@ -4,9 +4,9 @@ This release adds pricing, persistent credit wallets, provider-usage receipts, a
 
 ## Using it now
 
-Open **Settings → Code** (also available under **Plans & credits**) and enter the temporary family code supplied by the owner. A successful redemption persists permanent family access for that signed-in account. Family users receive all existing features, bypass credit and daily request limits, and never need a subscription. Their API costs are still recorded. Redemption does not grant billing-administrator access.
+**Owner gifts:** Visit **Gifts & access** in the owner sidebar after signing in with the verified email configured as `BILLING_ADMIN_EMAILS`. Recipients must sign up and open their own account first. The owner can grant 1–90 days of StudyBot or Plus with a hard upper limit of $10 in gifted AI processing, and revoke that access later. Grants are account-bound, automatically expire, and are tracked in the recipient's private billing record. A granted trial never enables unlimited Ultra. Any unspent gift budget becomes unavailable on expiration or revocation; original paid subscriptions and saved work remain unchanged.
 
-The temporary code is represented only by a SHA-256 digest in server code. This is a convenience code, not a strong identity check: anyone who obtains or guesses it can redeem it. Set `FAMILY_CODE_SHA256=disabled` to stop new redemptions without removing existing family access, or replace it with the digest of a new code. Five failed attempts per account are allowed per 15 minutes. Do not put secrets in `NEXT_PUBLIC_*` variables or Git.
+**Old shared family codes are retired by default.** The built-in digest is no longer honored; the redeem endpoint returns HTTP 410. Do not set `ENABLE_LEGACY_FAMILY_CODES=1` unless you deliberately intend to restore this insecure shared-code flow, and set `FAMILY_CODE_SHA256=disabled` in Cloudflare if previously configured. Users who redeemed the old code retain permanent family access until the owner explicitly selects **Revoke unlimited** for their account in Gifts & access. This action preserves users' notes and test history and cannot revoke the owner's own account. Permanent family users have unmetered AI usage; promptly review existing family accounts and revoke unwanted grants.
 
 Set the Cloudflare variable `BILLING_ADMIN_EMAILS` to the owner's exact sign-in email (comma-separated if needed) to enable **/usage**. Family access never grants access to other users' billing records. Desktop/development runs are owner accounts and remain unlimited.
 
@@ -48,3 +48,12 @@ The ledger records model, pricing version, input/output/cache tokens, provider m
 The owner console separates family spending from other accounts and shows lifetime cost, request counts, remaining credits and pending checks for up to the 100 highest-cost accounts. Each customer's **Plans & credits** page shows their latest 50 requests. Billing administration requires the explicit owner email allowlist.
 
 The owner console also lists up to 100 pending reservations. After checking the provider record, an owner can settle one with the confirmed cost and an audit reference. Requests younger than 10 minutes cannot be manually settled. Repeated reconciliation does not charge twice; unspent reserved value returns to the appropriate balance. Enter zero only when the provider confirms that no usage was charged.
+
+
+## Safe beta gifting checklist
+
+1. Verify your owner email is explicitly configured in Cloudflare's `BILLING_ADMIN_EMAILS`. Access checks happen on the server; merely knowing the URL doesn't provide access.
+2. Ask each recipient to sign in once, then visit **Gifts & access** and enter their verified email, tier, expiration and total AI-processing cap. There is no reusable gift code to share.
+3. Existing family-code accounts must be revoked individually. Disabling the code alone cannot revoke past unlimited redemptions.
+4. View costs under **AI costs** during the beta. A maximum gift budget does not eliminate all other infrastructure expenses or costs incurred before revocation.
+5. Test expiration, revocation, concurrent AI calls, renewal and purchased credits in a staging environment before public rollout. Never delete D1 data or real customer subscriptions to reset access.
