@@ -117,13 +117,16 @@ describe("personal grade prediction", () => {
       predict([], multiQuiz([94, 94, 94, 94, 60])).predicted,
     ).toBeGreaterThan(70);
   });
-  it("uses an honest conservative cold start with a wide range", () => {
+  it("caps a cold-start forecast at ±10 while disclosing underlying uncertainty", () => {
     const p = predict();
     expect(p.predicted).toBe(89);
     expect(p.confidence).toBe("low");
     expect(p.sample_size).toBe(0);
-    expect(p.upper - p.lower).toBeGreaterThan(25);
+    expect(p.lower).toBe(79);
+    expect(p.upper).toBe(99);
     expect(p.explanation).toMatch(/no paired school results/);
+    expect(p.explanation).toMatch(/underlying uncertainty is greater/);
+    expect(p.explanation).toMatch(/not a reliable coverage interval/);
   });
   it("bounds estimates and ranges at both score limits", () => {
     for (const score of [0, 1, 99, 100]) {
@@ -132,6 +135,16 @@ describe("personal grade prediction", () => {
       expect(p.upper).toBeLessThanOrEqual(100);
       expect(p.predicted).toBeGreaterThanOrEqual(p.lower);
       expect(p.predicted).toBeLessThanOrEqual(p.upper);
+    }
+  });
+  it("never exceeds ±10 percentage points across scores and history", () => {
+    const histories = [[], [example("one", 10)], Array.from({ length: 30 }, (_, i) => example(`good-${i}`, 90))];
+    for (const history of histories) for (const score of [0, 5, 30, 50, 75, 90, 95, 100]) {
+      const p = predict(history, { ...features, latest: score, average: score });
+      expect(p.lower).toBeGreaterThanOrEqual(Math.max(0, p.predicted - 10) - 0.01);
+      expect(p.upper).toBeLessThanOrEqual(Math.min(100, p.predicted + 10) + 0.01);
+      expect(p.lower).toBeLessThanOrEqual(p.predicted);
+      expect(p.upper).toBeGreaterThanOrEqual(p.predicted);
     }
   });
   it("rejects invalid practice scores", () => {

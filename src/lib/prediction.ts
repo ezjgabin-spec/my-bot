@@ -8,7 +8,9 @@ import type {
   PracticeTest,
   State,
 } from "./types";
-export const MODEL_VERSION = "personal-calibration-v2";
+export const MODEL_VERSION = "personal-calibration-v2-range-cap10";
+// Product display constraint, NOT an empirical confidence or coverage guarantee.
+export const MAX_DISPLAY_HALF_RANGE = 10;
 const offsets = { Easy: -10, Medium: -6, Hard: -2, "Teacher-Level": -1 };
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const round = (n: number) => Math.round(n * 10) / 10;
@@ -173,12 +175,20 @@ export function predictGrade(input: {
     6,
     30,
   );
+  // Preserve the research-driven width internally, but never advertise an
+  // excessively broad band in the student-facing forecast.  Capping a range
+  // does not make the model more accurate or increase its confidence.
+  const displayedWidth = Math.min(width, MAX_DISPLAY_HALF_RANGE);
+  const widthIsCapped = width > MAX_DISPLAY_HALF_RANGE;
+  const rangeDisclosure = widthIsCapped
+    ? "Displayed range capped at ±10 percentage points for readability; underlying uncertainty is greater, so this band is not a reliable coverage interval."
+    : "Displayed range is a heuristic estimate, not a statistically validated coverage interval.";
   const confidence =
     weightSum < 5 ? "low" : weightSum < 15 ? "moderate" : "higher";
   return {
     predicted: round(predicted),
-    lower: round(clamp(predicted - width)),
-    upper: round(clamp(predicted + width)),
+    lower: round(clamp(predicted - displayedWidth)),
+    upper: round(clamp(predicted + displayedWidth)),
     baseline: round(baseline),
     adjustment: round(adjustment),
     confidence: confidence as "low" | "moderate" | "higher",
@@ -187,7 +197,7 @@ export function predictGrade(input: {
     model_version: MODEL_VERSION,
     explanation:
       selected.length === 0
-        ? `Low confidence: no paired school results yet. Uses all ${f.attemptCount} completed practice quizzes for this exam, with more weight on recent quizzes and an adjustment for each quiz's difficulty. The range is a heuristic, not a statistical guarantee.`
-        : `Uses all ${f.attemptCount} completed practice quizzes for this exam, weighted toward recent results and adjusted for difficulty. Calibrated on ${selected.length} distinct school exam${selected.length === 1 ? "" : "s"} using ${subjectSpecific ? "subject-specific" : "subject-weighted overall"} results. Recent and similar exams count more; outliers are capped and adjustments shrink toward the baseline. Range uses errors from saved pre-result predictions. Confidence is ${confidence}; this is an estimate, not a guaranteed grade.`,
+        ? `Low confidence: no paired school results yet. Uses all ${f.attemptCount} completed practice quizzes for this exam, with more weight on recent quizzes and an adjustment for each quiz's difficulty. ${rangeDisclosure}`
+        : `Uses all ${f.attemptCount} completed practice quizzes for this exam, weighted toward recent results and adjusted for difficulty. Calibrated on ${selected.length} distinct school exam${selected.length === 1 ? "" : "s"} using ${subjectSpecific ? "subject-specific" : "subject-weighted overall"} results. Recent and similar exams count more; outliers are capped and adjustments shrink toward the baseline. Range uses errors from saved pre-result predictions. Confidence is ${confidence}; ${rangeDisclosure} This is an estimate, not a guaranteed grade.`,
   };
 }
