@@ -95,10 +95,18 @@ export default function WritingPage(){
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
  async function saveActual(){
-  setBusy(true);setError("");
+  if(busy||!current)return;
+  setBusy(true);setError("");setNotice("");
   try{
-   await api("/api/writing/actual",{method:"POST",body:JSON.stringify({essayId:current,grade:Number(grade),teacherNotes:actualNotes})});
-   await load();setNotice("Real teacher grade saved separately from the AI's earlier estimate.");
+   const payload={
+    essayId:current,
+    ...(grade.trim()!==""?{grade:Number(grade)}:{}),
+    ...(teacherLetter?{letter:teacherLetter}:{}),
+    teacherNotes:actualNotes,
+   };
+   const response=await api<{saved:boolean;essay:WritingDocument}>("/api/writing/actual",{method:"POST",body:JSON.stringify(payload)});
+   setDocs(old=>old.map(doc=>doc.id===response.essay.id?response.essay:doc));
+   setNotice("Teacher grade saved. Your earlier forecast is unchanged; no AI credits were used.");
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
  const graded=result?.feedback;
@@ -129,7 +137,8 @@ export default function WritingPage(){
     <section className="writing-quote"><strong>Estimated AI usage: {quote.estimatedCredits.toFixed(2)} credits (about ${quote.estimatedDollars.toFixed(2)})</strong><p>Conservative planning estimate, not a guaranteed cap. Actual Claude tokens determine your charge; temporary wallet reservations may be higher. {autoHumanize?"Includes the second Humanize pass.":""}</p><div className="button-row"><button type="button" className="button secondary small" onClick={()=>setQuote(null)}>Edit</button><button type="button" className="button" disabled={busy} onClick={()=>void submit()}>{busy?"Working…":`Confirm ${action} · use credits`}</button></div></section>}
     {result&&<section className="writing-result"><h2>{result.action==="grade"?"Grade estimate":result.action==="model"?"Illustrative model essay":"Revised writing"}</h2>{graded?<WritingPredictionReport feedback={graded} actualGrade={docs.find(d=>d.id===current)?.actualTeacherGrade} actualLetter={docs.find(d=>d.id===current)?.actualTeacherLetter}/>:<><div className="writing-compare"><div><h3>Original writing</h3><p className="writing-output">{docs.find(d=>d.id===current)?.sourceText}</p></div><div><h3>{result.action==="model"?"Illustrative example":"Revised version"}</h3><p className="writing-output">{result.result}</p></div></div><p className="helper">Model essays are educational examples, not guaranteed grades. Verify all source evidence before using a revision.</p></>}
     </section>}
-    {current&&docs.find(d=>d.id===current)?.revisions.some(r=>r.action==="grade")&&<section className="writing-actual"><h2>Compare with teacher's actual grade</h2><p className="helper">The grade is entered only after the independent AI estimate has been saved.</p><label>Real teacher grade (%)<input type="number" min={0} max={100} step="0.1" value={grade} onChange={e=>setGrade(e.target.value)}/></label><label>Teacher comments (optional)<textarea rows={3} value={actualNotes} onChange={e=>setActualNotes(e.target.value)}/></label><button className="button secondary" disabled={busy||grade===""||Number(grade)<0||Number(grade)>100} onClick={()=>void saveActual()}>Save real grade</button></section>}
+    {current&&docs.find(d=>d.id===current)?.revisions.some(r=>r.action==="grade")&&<section className="writing-actual"><h2>Compare with teacher's actual grade</h2><p className="helper">Enter your teacher's letter grade, exact percentage, or both. A letter such as B- is enough; no AI credits are used.</p><div className="writing-grade-inputs"><label>Teacher letter grade<select value={teacherLetter} onChange={e=>setTeacherLetter(e.target.value)}><option value="">Not provided</option>{targetGrades.map(g=><option key={g} value={g}>{g}</option>)}</select></label><label>Exact percentage (optional)<input type="number" min={0} max={100} step="any" placeholder="e.g. 81.5" value={grade} onChange={e=>setGrade(e.target.value)}/></label></div><label>Teacher comments (optional)<textarea rows={3} value={actualNotes} onChange={e=>setActualNotes(e.target.value)}/></label><button type="button" className="button secondary" disabled={busy||(grade.trim()===""&&!teacherLetter)||(grade.trim()!==""&&(!Number.isFinite(Number(grade))||Number(grade)<0||Number(grade)>100))} onClick={()=>void saveActual()}>{busy?"Saving grade…":"Save teacher grade"}</button></section>}
+
    </section>
    <aside className="panel form-panel writing-history"><h2>Revision history</h2><p className="helper">Original source, AI feedback and rewrites are saved per account.</p>{docs.find(d=>d.id===current)?.revisions.slice().reverse().map(r=><button key={r.id} className="writing-history-entry" onClick={()=>setResult(r)}><strong>{r.action}{r.targetGrade?` · ${r.targetGrade}`:""}</strong><small>{new Date(r.createdAt).toLocaleString()}</small></button>)}{!current&&<p className="helper">Choose a saved essay or generate your first grade estimate.</p>}</aside>
   </div>}
