@@ -4,7 +4,8 @@ import Link from "next/link";
 import {BookOpen,Sparkles,ArrowRight,Upload,RotateCcw} from "lucide-react";
 import {api} from "@/lib/client";
 import {useWorkspace} from "@/components/workspace";
-import type {WritingDocument,WritingInput,WritingRevision,GradeFeedback} from "@/lib/writing-types";
+import type {WritingDocument,WritingInput,WritingRevision} from "@/lib/writing-types";
+import {WritingPredictionReport} from "@/components/writing-prediction-report";
 import {targetGrades} from "@/lib/writing-types";
 import "./writing.css";
 
@@ -40,7 +41,20 @@ export default function WritingPage(){
  const [notice,setNotice]=useState("");
  const requestId=useRef<string|null>(null);
  const upload=useRef<HTMLInputElement|null>(null);
- async function load(){try{const r=await api<{essays:WritingDocument[]}>("/api/writing");setDocs(r.essays);}catch(e){setError((e as Error).message);}}
+ async function load(){
+  try {
+   const r=await api<{essays:WritingDocument[]}>("/api/writing");
+   setDocs(r.essays);
+   const id=new URLSearchParams(window.location.search).get("essay");
+   const doc=r.essays.find(d=>d.id===id);
+   if(doc){
+    setCurrent(doc.id);setTitle(doc.title);setText(doc.sourceText);
+    setAssignment(doc.assignment);setRubric(doc.rubric);setTeacherFeedback(doc.teacherFeedback);
+    setMaterialId(undefined);setGrade(doc.actualTeacherGrade?.toString()??"");setActualNotes(doc.actualTeacherNotes??"");
+    setResult(doc.revisions.slice().reverse().find(rev=>rev.action==="grade"&&rev.feedback)??doc.revisions.at(-1)??null);
+   }
+  } catch(e) {setError((e as Error).message);}
+ }
  useEffect(()=>{if(connection==="ready"&&allowed)void load();},[connection,allowed]);
  function resetQuote(){setQuote(null);requestId.current=null;}
  function chooseDoc(id:string){
@@ -111,7 +125,7 @@ export default function WritingPage(){
     {notice&&<p className="notice" role="status">{notice}</p>}
     {!quote?<button type="button" className="button" disabled={busy||!aiReady} onClick={()=>void preview()}>{busy?"Preparing estimate…":"Review estimated credit cost"} <ArrowRight size={16}/></button>:
     <section className="writing-quote"><strong>Estimated AI usage: {quote.estimatedCredits.toFixed(2)} credits (about ${quote.estimatedDollars.toFixed(2)})</strong><p>Conservative planning estimate, not a guaranteed cap. Actual Claude tokens determine your charge; temporary wallet reservations may be higher. {autoHumanize?"Includes the second Humanize pass.":""}</p><div className="button-row"><button type="button" className="button secondary small" onClick={()=>setQuote(null)}>Edit</button><button type="button" className="button" disabled={busy} onClick={()=>void submit()}>{busy?"Working…":`Confirm ${action} · use credits`}</button></div></section>}
-    {result&&<section className="writing-result"><h2>{result.action==="grade"?"Grade estimate":result.action==="model"?"Illustrative model essay":"Revised writing"}</h2>{graded?<><div className="writing-range"><strong>{graded.lower.toFixed(0)}–{graded.upper.toFixed(0)}%</strong><span>{graded.likelyLetter} · {graded.confidence} confidence</span></div><p>{graded.overview}</p><div className="writing-columns"><div><h3>Strengths</h3>{graded.strengths.map((v,i)=><p key={i}>{v}</p>)}</div><div><h3>Next improvements</h3>{graded.priorities.map((v,i)=><p key={i}>{v}</p>)}</div></div>{graded.criteria.map((c,i)=><p key={i}><strong>{c.name}:</strong> {c.feedback}</p>)}<p className="helper">{graded.limitations}</p></>:<><div className="writing-compare"><div><h3>Original writing</h3><p className="writing-output">{docs.find(d=>d.id===current)?.sourceText}</p></div><div><h3>{result.action==="model"?"Illustrative example":"Revised version"}</h3><p className="writing-output">{result.result}</p></div></div><p className="helper">Model essays are educational examples, not guaranteed grades. Verify all source evidence before using a revision.</p></>}
+    {result&&<section className="writing-result"><h2>{result.action==="grade"?"Grade estimate":result.action==="model"?"Illustrative model essay":"Revised writing"}</h2>{graded?<WritingPredictionReport feedback={graded} actualGrade={docs.find(d=>d.id===current)?.actualTeacherGrade}/>:<><div className="writing-compare"><div><h3>Original writing</h3><p className="writing-output">{docs.find(d=>d.id===current)?.sourceText}</p></div><div><h3>{result.action==="model"?"Illustrative example":"Revised version"}</h3><p className="writing-output">{result.result}</p></div></div><p className="helper">Model essays are educational examples, not guaranteed grades. Verify all source evidence before using a revision.</p></>}
     </section>}
     {current&&docs.find(d=>d.id===current)?.revisions.some(r=>r.action==="grade")&&<section className="writing-actual"><h2>Compare with teacher's actual grade</h2><p className="helper">The grade is entered only after the independent AI estimate has been saved.</p><label>Real teacher grade (%)<input type="number" min={0} max={100} step="0.1" value={grade} onChange={e=>setGrade(e.target.value)}/></label><label>Teacher comments (optional)<textarea rows={3} value={actualNotes} onChange={e=>setActualNotes(e.target.value)}/></label><button className="button secondary" disabled={busy||grade===""||Number(grade)<0||Number(grade)>100} onClick={()=>void saveActual()}>Save real grade</button></section>}
    </section>
