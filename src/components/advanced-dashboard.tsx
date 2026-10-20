@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "./workspace";
 import { PerformanceChart } from "./charts";
+import { WritingDashboard } from "./writing-dashboard";
 import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 
@@ -185,6 +186,8 @@ export function AdvancedDashboard() {
           )}
         </div>
       </section>
+
+      <WritingDashboard />
 
       <div className="advanced-stats">
         {metrics.map(({ label, value, detail, icon: Icon }, i) => (
