@@ -110,6 +110,18 @@ export default function WritingPage(){
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
  const graded=result?.feedback;
+ const pairedEssays=docs.flatMap(doc=>{
+  if(typeof doc.actualTeacherGrade!=="number")return [];
+  const forecasts=doc.revisions.filter(r=>
+   r.action==="grade"&&r.feedback&&(!doc.actualTeacherRecordedAt||r.createdAt<=doc.actualTeacherRecordedAt)
+  ).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+  const f=forecasts[0]?.feedback;
+  return f?[{id:doc.id,name:doc.title.slice(0,18),predicted:(f.lower+f.upper)/2,actual:doc.actualTeacherGrade,createdAt:forecasts[0].createdAt}]:[];
+ }).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+ const averageError=pairedEssays.length
+  ? pairedEssays.reduce((sum,row)=>sum+Math.abs(row.actual-row.predicted),0)/pairedEssays.length
+  : null;
+
  return <div className="writing-lab">
   <header className="writing-header"><span className="eyebrow"><Sparkles size={14}/> WRITING LAB</span><h1>Strengthen your writing. Understand your grade.</h1><p>Get an independent grade estimate, compare revisions, and save real teacher feedback. Grade predictions are estimates, not guaranteed school results.</p></header>
   {!allowed?<section className="panel form-panel"><h2><BookOpen size={21}/> Writing Lab is a Study feature</h2><p>Essay grading starts with Study. Rewriting, model essays and Humanize require Plus. No AI request is made until you confirm.</p><Link href="/pricing" className="button">View plans <ArrowRight size={16}/></Link></section>:
@@ -139,6 +151,7 @@ export default function WritingPage(){
     </section>}
     {current&&docs.find(d=>d.id===current)?.revisions.some(r=>r.action==="grade")&&<section className="writing-actual"><h2>Compare with teacher's actual grade</h2><p className="helper">Enter your teacher's letter grade, exact percentage, or both. A letter such as B- is enough; no AI credits are used.</p><div className="writing-grade-inputs"><label>Teacher letter grade<select value={teacherLetter} onChange={e=>setTeacherLetter(e.target.value)}><option value="">Not provided</option>{targetGrades.map(g=><option key={g} value={g}>{g}</option>)}</select></label><label>Exact percentage (optional)<input type="number" min={0} max={100} step="any" placeholder="e.g. 81.5" value={grade} onChange={e=>setGrade(e.target.value)}/></label></div><label>Teacher comments (optional)<textarea rows={3} value={actualNotes} onChange={e=>setActualNotes(e.target.value)}/></label><button type="button" className="button secondary" disabled={busy||(grade.trim()===""&&!teacherLetter)||(grade.trim()!==""&&(!Number.isFinite(Number(grade))||Number(grade)<0||Number(grade)>100))} onClick={()=>void saveActual()}>{busy?"Saving grade…":"Save teacher grade"}</button></section>}
 
+   {pairedEssays.length>0&&<section className="writing-actual"><h2>Essay prediction accuracy over time</h2><p className="helper">Each dot compares a saved forecast midpoint to the exact percentage the teacher gave. Letter-only grades are excluded from numeric calculations, and the original forecasts stay unchanged.</p><div className="writing-analytics-stat"><strong>{pairedEssays.length}</strong><span>Paired essays</span><strong>{averageError?.toFixed(1)} pp</strong><span>Average absolute error</span></div><PerformanceChart actual data={pairedEssays.map(row=>({name:row.name,predicted:row.predicted,actual:row.actual}))}/></section>}
    </section>
    <aside className="panel form-panel writing-history"><h2>Revision history</h2><p className="helper">Original source, AI feedback and rewrites are saved per account.</p>{docs.find(d=>d.id===current)?.revisions.slice().reverse().map(r=><button key={r.id} className="writing-history-entry" onClick={()=>setResult(r)}><strong>{r.action}{r.targetGrade?` · ${r.targetGrade}`:""}</strong><small>{new Date(r.createdAt).toLocaleString()}</small></button>)}{!current&&<p className="helper">Choose a saved essay or generate your first grade estimate.</p>}</aside>
   </div>}
