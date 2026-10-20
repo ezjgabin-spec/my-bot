@@ -1,0 +1,18 @@
+.card{margin:0 0 24px;padding:22px;border-radius:17px;border:1px solid #514b89;background:linear-gradient(120deg,#251f42,#1b2642 60%,#182337);color:#e6e5ff;box-shadow:0 14px 32px #080b1c24;min-width:0}
+.header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.header h2{font-size:21px;margin:6px 0 3px;letter-spacing:-.3px;color:#f4efff}
+.header p{font-size:12px;color:#bac0d8;margin:0;overflow-wrap:anywhere}
+.kicker{display:flex;align-items:center;gap:6px;font-size:10px;color:#bcb2ff;font-weight:800;letter-spacing:1.1px}
+.link{display:inline-flex;align-items:center;gap:8px;color:#e4ddff;font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap}
+.link:hover{text-decoration:underline}
+.body{display:grid;grid-template-columns:minmax(170px,1fr)130px minmax(240px,2fr);gap:13px}
+.score,.letter,.insight{padding:15px;border:1px solid #424b73;background:#ffffff08;border-radius:12px;min-width:0}
+.score span,.letter span,.insight span{display:flex;gap:7px;align-items:center;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#bbb8e1}
+.score strong{display:block;font-size:clamp(26px,3vw,38px);letter-spacing:-1px;margin-top:8px;color:#f0e3ff;font-variant-numeric:tabular-nums}
+.letter strong{display:block;font-size:36px;margin-top:7px;color:#efe9ff}
+.score small,.letter small{display:block;font-size:10px;color:#aaaed0;margin-top:4px}
+.insight p{margin:8px 0 0;font-size:12px;line-height:1.65;color:#d7deef;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.insight small{display:block;margin-top:9px;color:#bfc1e0;font-size:11px;line-height:1.45}
+.teacher{font-size:12px;margin:14px 0 0;color:#b4e8d0}
+@media(max-width:960px){.body{grid-template-columns:1fr 120px}.insight{grid-column:1/-1}}
+@media(max-width:540px){.card{padding:16px}.header{flex-direction:column;align-items:flex-start}.body{grid-template-columns:1fr 1fr}.score{padding:12px}.score strong{font-size:26px}.letter{padding:12px}.insight{grid-column:1/-1}}
