@@ -134,7 +134,7 @@ export default function Pricing() {
                 {data.freeTests} free test available · next refresh{" "}
                 {new Date(data.nextFreeAt).toLocaleDateString()}
               </p>
-            ) : data.gift && Date.parse(data.gift.expiresAt)>Date.now() && !data.paidUntil ? (
+            ) : data.gift && Date.parse(data.gift.expiresAt)>Date.now() && !(data.paidUntil && Date.parse(data.paidUntil)>Date.now()) ? (
               <p>Gifted {data.gift.tier==="plus"?"StudyBot Plus":"StudyBot"} through {new Date(data.gift.expiresAt).toLocaleDateString()} · {"$"+(data.gift.remainingMicros/1_000_000).toFixed(2)} AI budget remaining</p>
             ) : (
               <p>
