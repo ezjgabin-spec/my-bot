@@ -18,7 +18,7 @@ import { AdvancedDashboard } from "@/components/advanced-dashboard";
 import { PageHeader, Empty, Badge } from "@/components/ui";
 import { PerformanceChart } from "@/components/charts";
 import { ForecastOrbit, StudySignals } from "@/components/study-signals";
-import { WritingDashboard } from "@/components/writing-dashboard";
+import { RecentAssignments } from "@/components/recent-assignments";
 import { mean, pairedOutcomes } from "@/lib/prediction";
 import { dateLabel, percent } from "@/lib/client";
 export default function Dashboard() {
@@ -98,6 +98,7 @@ export default function Dashboard() {
           </Link>
         }
       />
+      <RecentAssignments />
       <section className="hero-card">
         <div className="hero-copy">
           <Badge tone="purple">
@@ -135,7 +136,6 @@ export default function Dashboard() {
           </article>
         ))}
       </section>
-      <WritingDashboard />
       <StudySignals />
       <div className="dashboard-grid">
         <section className="panel">
