@@ -60,7 +60,7 @@ export function WritingPredictionReport({ feedback, actualGrade, actualLetter }:
         ) : <p className={styles.noPercent}>
           {actualLetter ? "Letter grade saved. Add the exact percentage if your teacher provides one to unlock a numeric comparison." : "Add your teacher result below to compare it with this estimate."}
         </p>}
-        {difference !== null && (
+        {difference !== null && actualGrade !== undefined && (
           <p className={styles.difference}>
             {Math.abs(difference).toFixed(1)} percentage points {difference < 0 ? "below" : difference > 0 ? "above" : "from"} the forecast midpoint.
             {" "}{actualGrade >= lower && actualGrade <= upper ? "Inside the predicted range." : "Outside the predicted range."}
