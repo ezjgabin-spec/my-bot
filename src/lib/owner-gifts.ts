@@ -77,10 +77,12 @@ export async function changeOwnerGift(raw: unknown) {
   if (recipient.id === owner.id) throw new AppError("Use a separate test account for gifts; you cannot change your own owner account.", 400);
 
   const change = (data: LocalData) => {
-    const account = accountFor(data, recipient, !isCloud());
-    // Check again during the atomic D1 update, not only during recipient lookup.
-    if (account.email?.toLowerCase() !== recipient.email)
+    // Compare the stored identity before accountFor synchronizes the email.
+    // The earlier email lookup is not an authorization to grant a renamed account.
+    const stored = data.billingAccounts[0];
+    if (!stored || stored.id !== recipient.id || stored.email?.trim().toLowerCase() !== recipient.email)
       throw new AppError("Account identity changed. Refresh the page and try again.", 409);
+    const account = accountFor(data, recipient, !isCloud());
     if (input.action === "grant") {
       if (account.family) throw new AppError("This account already has permanent family access. Revoke it first if you want a capped beta gift.", 409);
       if (account.paidUntil && Date.parse(account.paidUntil) > Date.now())
