@@ -50,6 +50,7 @@ type Workspace = {
   email: string | null;
   authMethod: "access" | "password";
   owner: boolean;
+  primaryOwner: boolean;
   error: string;
   refresh: () => Promise<void>;
 };
@@ -77,6 +78,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<Connection>("loading");
   const [aiReady, setAiReady] = useState(false);
   const [owner,setOwner]=useState(false);
+  const [primaryOwner,setPrimaryOwner]=useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<"access" | "password">("access");
   const [error, setError] = useState("");
@@ -97,6 +99,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         throw new Error(data.error || "Unable to load your workspace.");
       setAiReady(data.aiReady);
       setOwner(data.owner===true);
+      setPrimaryOwner(data.primaryOwner===true);
       setEntitlement(data.entitlement ?? null);
       setEmail(data.user?.email ?? null);
       setAuthMethod(data.authMethod === "password" ? "password" : "access");
@@ -113,7 +116,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
   return (
     <Context.Provider
-      value={{ state, connection, aiReady, email, error, refresh, entitlement, authMethod, owner }}
+      value={{ state, connection, aiReady, email, error, refresh, entitlement, authMethod, owner, primaryOwner }}
     >
       {children}
     </Context.Provider>
@@ -135,7 +138,7 @@ const navigation = [
 ];
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { connection, aiReady, entitlement, owner } = useWorkspace();
+  const { connection, aiReady, entitlement, owner, primaryOwner } = useWorkspace();
   const { appearance } = useAppearance();
   const themeVariables = useAppearanceVariables();
   const [open, setOpen] = useState(false);
@@ -228,7 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div className="workspace-label">{appearance.dashboard === "advanced" ? "INTELLIGENCE WORKSPACE" : "EXPLORE YOUR POTENTIAL"}</div>
           <nav aria-label="Main navigation">
-            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined},{href:"/admin/ai-costs",label:"AI costs",icon:ReceiptText},{href:"/admin/gifts",label:"Gifts & access",icon:Gift},{href:"/admin/essays",label:"Essay benchmarks",icon:FilePenLine}] : [])].map(({ href, label, icon: Icon }) => (
+            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined},{href:"/admin/ai-costs",label:"AI costs",icon:ReceiptText},{href:"/admin/essays",label:"Essay benchmarks",icon:FilePenLine}] : []), ...(primaryOwner ? [{href:"/admin/gifts",label:"Gifts & access",icon:Gift}] : [])] : [])].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
