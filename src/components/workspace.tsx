@@ -231,7 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div className="workspace-label">{appearance.dashboard === "advanced" ? "INTELLIGENCE WORKSPACE" : "EXPLORE YOUR POTENTIAL"}</div>
           <nav aria-label="Main navigation">
-            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined},{href:"/admin/ai-costs",label:"AI costs",icon:ReceiptText},{href:"/admin/essays",label:"Essay benchmarks",icon:FilePenLine}] : []), ...(primaryOwner ? [{href:"/admin/gifts",label:"Gifts & access",icon:Gift}] : [])] : [])].map(({ href, label, icon: Icon }) => (
+            {[...navigation, ...(owner ? [{href:"/research",label:"Prediction research",icon:ChartNoAxesCombined},{href:"/admin/ai-costs",label:"AI costs",icon:ReceiptText},{href:"/admin/essays",label:"Essay benchmarks",icon:FilePenLine}] : []), ...(primaryOwner ? [{href:"/admin/gifts",label:"Gifts & access",icon:Gift}] : [])].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
