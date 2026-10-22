@@ -2,14 +2,14 @@ import "server-only";
 import { cloudBindings, isCloud } from "./cloud";
 import { readLocalData, updateLocalData, type LocalData } from "./local-store";
 import { accountFor, entry } from "./billing";
-import { isBillingAdmin } from "./payments";
+import { isPrimaryOwner } from "./payments";
 import { AppError, requireUser } from "./server";
 import { activeGift, createGift, ownerGiftAction, type OwnerGiftAction } from "./gift-access";
 import { activePlan, zeroWallet, type BillingAccount } from "./plans";
 
 export async function requireGiftOwner() {
   const user = await requireUser();
-  if (!(await isBillingAdmin())) throw new AppError("Owner access required.", 403);
+  if (!(await isPrimaryOwner())) throw new AppError("Primary owner access required.", 403);
   return user;
 }
 
@@ -19,6 +19,8 @@ function view(account: BillingAccount) {
     email: account.email,
     plan: activePlan(account),
     family: account.family,
+    adminGrantedAt: account.adminGrantedAt ?? null,
+    knicksApprovedAt: account.knicksApprovedAt ?? null,
     isPaidSubscriber: Boolean(account.paidUntil && Date.parse(account.paidUntil) > Date.now()),
     gift: account.gift
       ? {
@@ -103,7 +105,25 @@ export async function changeOwnerGift(raw: unknown) {
     } else if (input.action === "revoke-family") {
       if (!account.family) throw new AppError("This account has no permanent family entitlement.", 409);
       account.family = false;
-      entry(data, "family-revoke", zeroWallet(), "Owner revoked legacy permanent family access");
+      // Any old invitation must not allow the user to immediately regain access.
+      account.knicksApprovedAt = undefined;
+      entry(data, "family-revoke", zeroWallet(), "Owner revoked permanent family access");
+    } else if (input.action === "approve-knicks") {
+      if (account.family) throw new AppError("This account already has unlimited access.", 409);
+      account.knicksApprovedAt = new Date().toISOString();
+      entry(data, "knicks-invite", zeroWallet(), "Primary owner approved a one-use Knicks redemption for this verified account");
+    } else if (input.action === "revoke-knicks-approval") {
+      if (!account.knicksApprovedAt) throw new AppError("This account has no pending Knicks invitation.", 409);
+      account.knicksApprovedAt = undefined;
+      entry(data, "knicks-revoke-invite", zeroWallet(), "Primary owner revoked an unused Knicks invitation");
+    } else if (input.action === "grant-admin") {
+      if (account.adminGrantedAt) throw new AppError("This user is already a delegated administrator.", 409);
+      account.adminGrantedAt = new Date().toISOString();
+      entry(data, "admin-grant", zeroWallet(), "Primary owner granted delegated administration");
+    } else if (input.action === "revoke-admin") {
+      if (!account.adminGrantedAt) throw new AppError("This user is not a delegated administrator.", 409);
+      account.adminGrantedAt = undefined;
+      entry(data, "admin-revoke", zeroWallet(), "Primary owner revoked delegated administration");
     }
     return view(account);
   };
