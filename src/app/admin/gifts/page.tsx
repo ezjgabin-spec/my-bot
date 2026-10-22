@@ -30,7 +30,7 @@ type Listing = { accounts: Account[]; limited: boolean };
 const money = (micros: number) => "$" + (micros / 1_000_000).toFixed(2);
 
 export default function OwnerGifts() {
-  const { owner, connection, email: myEmail } = useWorkspace();
+  const { primaryOwner, connection, email: myEmail } = useWorkspace();
   const [data, setData] = useState<Listing | null>(null);
   const [recipient, setRecipient] = useState("");
   const [tier, setTier] = useState<"study" | "plus">("plus");
@@ -46,8 +46,8 @@ export default function OwnerGifts() {
     } catch (e) { setError((e as Error).message); }
   }, []);
   useEffect(() => {
-    if (connection === "ready" && owner) void load();
-  }, [connection, owner, load]);
+    if (connection === "ready" && primaryOwner) void load();
+  }, [connection, primaryOwner, load]);
 
   const visible = useMemo(() =>
     [...(data?.accounts ?? [])].sort((a,b) =>
@@ -117,7 +117,7 @@ export default function OwnerGifts() {
     } catch (e) {setError((e as Error).message);} finally {setBusy(false);}
   }
 
-  if (connection === "ready" && !owner)
+  if (connection === "ready" && !primaryOwner)
     return <section className="panel form-panel"><h2>Owner access required</h2><p>Only the verified StudyBot owner can create or revoke gifts.</p><Link href="/" className="button secondary">Back home</Link></section>;
 
   return <div className="owner-gifts">
