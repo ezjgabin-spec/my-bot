@@ -1,4 +1,4 @@
-import { isBillingAdmin } from "@/lib/payments";
+import { isBillingAdmin, isPrimaryOwner } from "@/lib/payments";
 import { NextResponse } from "next/server";
 import { configurationStatus } from "@/lib/config";
 import { requireUser, apiError } from "@/lib/server";
@@ -29,6 +29,7 @@ export async function GET() {
       {
         configured: true,
         owner: await isBillingAdmin(),
+        primaryOwner: await isPrimaryOwner(),
         aiReady: config.aiReady,
         authMethod: process.env.PASSWORD_AUTH_ENABLED === "1" ? "password" : "access",
         user: "email" in user ? { email: user.email } : null,
