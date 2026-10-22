@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Check, Printer, Save, Send } from "lucide-react";
 import { useWorkspace } from "@/components/workspace";
 import { api } from "@/lib/client";
+import { prepareStudyPhoto } from "@/lib/photo-client";
 import { ErrorMessage, PageHeader } from "@/components/ui";
 import type { AttemptView, PublicQuestion } from "@/lib/types";
 import "./paper.css";
@@ -14,37 +15,6 @@ type PhotoResult = { transcription: string };
 type ScanResult = { answers: { questionId: string; number: number; answer: string }[]; skipped: number };
 const letter = (index: number) => String.fromCharCode(65 + index);
 
-async function preparePhoto(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Choose a photo.");
-  if (file.size > 12_000_000) throw new Error("Use a photo under 12 MB.");
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("Unable to open this image. Try a JPG or PNG."));
-      image.src = url;
-    });
-    const naturalWidth = image.naturalWidth;
-    const naturalHeight = image.naturalHeight;
-    if (!naturalWidth || !naturalHeight) throw new Error("Empty image.");
-    const scale = Math.min(1, 1800 / Math.max(naturalWidth, naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(naturalHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Photo processing is unavailable.");
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const base64 = canvas.toDataURL("image/jpeg", 0.78).split(",")[1];
-    if (!base64 || base64.length > 2_000_000)
-      throw new Error("Photo is too detailed. Crop it to one written answer and try again.");
-    return base64;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 export default function PaperAttemptPage({
   params,
@@ -101,7 +71,7 @@ export default function PaperAttemptPage({
     try {
       for (let i = 0; i < files.length; i++) {
         setMessage("Reading page " + (i + 1) + " of " + files.length + "…");
-        const image = await preparePhoto(files[i]);
+        const image = await prepareStudyPhoto(files[i]);
         const result = await api<ScanResult>("/api/attempts/" + id + "/scan", {
           method: "POST",
           body: JSON.stringify({ requestId: crypto.randomUUID(), image }),
@@ -169,7 +139,7 @@ export default function PaperAttemptPage({
     setError("");
     setMessage("");
     try {
-      const image = await preparePhoto(file);
+      const image = await prepareStudyPhoto(file);
       const result = await api<PhotoResult>("/api/attempts/" + id + "/photo", {
         method: "POST",
         body: JSON.stringify({
@@ -180,7 +150,7 @@ export default function PaperAttemptPage({
       });
       change(question.id, result.transcription);
       setScanNeedsReview(true);
-      setMessage("Photo transcribed for question " + question.position + ". Review and correct the text before submitting.");
+      setMessage("Photo transcribed for question " + (question.position + 1) + ". Review and correct the text before submitting.");
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
