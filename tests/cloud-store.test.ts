@@ -17,6 +17,7 @@ import { POST as submit } from "../src/app/api/attempts/[id]/submit/route";
 import { GET as viewAttempt } from "../src/app/api/attempts/[id]/route";
 import { POST as upload } from "../src/app/api/materials/route";
 import { GET as stateRoute } from "../src/app/api/state/route";
+import { POST as giftAction, GET as listGifts } from "../src/app/api/admin/gifts/route";
 import { DELETE as deleteSubject } from "../src/app/api/subjects/[id]/route";
 import { DELETE as deleteTest } from "../src/app/api/tests/[id]/route";
 import { DELETE as deleteExam } from "../src/app/api/exams/[id]/route";
@@ -25,6 +26,7 @@ import {
   reserveUsage,
   settleUsage,
   redeemFamilyCode,
+  billingAccount,
 } from "../src/lib/billing";
 import {
   POST as saveFlashcards,
@@ -144,6 +146,9 @@ beforeEach(async () => {
     "FAMILY_CODE_SHA256",
     "5014754c782e050b8561badb73161e1b10912c638bd6a5fd8d3b037ab8e67c6f",
   );
+  // Existing redemption coverage deliberately enables the retired legacy flow.
+  vi.stubEnv("ENABLE_LEGACY_FAMILY_CODES", "1");
+  vi.stubEnv("BILLING_ADMIN_EMAILS", "owner@example.com");
   vi.stubEnv("STUDYPREDICT_CLOUD", "1");
   vi.stubEnv("APP_ORIGIN", "https://study.example.com");
   vi.stubEnv("ANTHROPIC_API_KEY", "");
@@ -204,6 +209,66 @@ async function seed() {
   };
 }
 describe("Cloudflare D1 account isolation", () => {
+  it("authorizes owner gifting only, binds it to one verified account, and preserves data on revoke", async () => {
+    await as("brother", () => billingAccount());
+    const savedExam = await as("brother", () => store.createLocalExam({subject:"History",name:"Trial material"}));
+    const request = (payload: unknown) => new Request("https://study.example.com/api/admin/gifts", {
+      method: "POST", headers: origin, body: JSON.stringify(payload),
+    });
+    const grant = {action:"grant",email:"brother@example.com",tier:"plus",days:14,budgetCents:200};
+    const nonowner = await as("brother", () => giftAction(request(grant)));
+    expect(nonowner.status).toBe(403);
+    const nonownerList = await as("brother", () => listGifts());
+    expect(nonownerList.status).toBe(403);
+    const missing = await as("owner", () => giftAction(request({...grant,email:"unknown@example.com"})));
+    expect(missing.status).toBe(404);
+    await as("owner", () => billingAccount());
+    const selfGrant = await as("owner", () => giftAction(request({...grant,email:"owner@example.com"})));
+    expect(selfGrant.status).toBe(400);
+    const issued = await as("owner", () => giftAction(request(grant)));
+    expect(issued.status).toBe(200);
+    const afterGrant = await as("brother", () => billingAccount());
+    expect(afterGrant.gift?.remainingMicros).toBe(2_000_000);
+    expect(afterGrant.gift?.tier).toBe("plus");
+    const receipt = await as("brother", () => reserveUsage(
+      {operation:"test",model:"test",pricingVersion:"test"}, 100_000, 100_000,
+    ));
+    expect(receipt.giftReservation?.amountMicros).toBe(100_000);
+    await as("brother", () => settleUsage(receipt.id, {
+      cost:70_000,input:1,output:1,cacheRead:0,cacheWrite:0,providerId:"test",
+    }));
+    const afterUsage = await as("brother", () => billingAccount());
+    expect(afterUsage.gift?.remainingMicros).toBe(1_930_000);
+    const revoked = await as("owner", () => giftAction(request({action:"revoke-gift",email:"brother@example.com"})));
+    expect(revoked.status).toBe(200);
+    const afterRevoke = await as("brother", () => billingAccount());
+    expect(afterRevoke.gift).toBeUndefined();
+    expect(afterRevoke.balance.purchased).toBe(0);
+    const saved = await as("brother", () => store.readLocalData());
+    expect(saved).toMatchObject({exams:[{id:savedExam.id, name:"Trial material"}]});
+  });
+  it("lets the owner revoke a legacy family's unlimited entitlement, not its schoolwork", async () => {
+    await as("brother", () => redeemFamilyCode("test-family-access"));
+    const before = await as("brother", () => billingAccount());
+    expect(before.family).toBe(true);
+    const response = await as("owner", () => giftAction(new Request(
+      "https://study.example.com/api/admin/gifts",
+      {method:"POST",headers:origin,body:JSON.stringify({action:"revoke-family",email:"brother@example.com"})},
+    )));
+    expect(response.status).toBe(200);
+    expect((await as("brother", () => billingAccount())).family).toBe(false);
+    expect((await as("brother", () => store.readLocalData())).billingLedger.some(
+      row => row.kind === "family-revoke",
+    )).toBe(true);
+  });
+
+  it("rejects the old shared code by default even when a hash remains configured", async () => {
+    vi.stubEnv("ENABLE_LEGACY_FAMILY_CODES", "0");
+    await expect(as("owner", () => redeemFamilyCode("test-family-access")))
+      .rejects.toMatchObject({status:410});
+    expect((await as("owner", () => store.readLocalData())).billingAccounts).toEqual([]);
+  });
+
   it("protects interpretation and rejects oversized text before calling AI", async () => {
     const request = (text: string, requestOrigin = origin.Origin) =>
       new Request("https://study.example.com/api/materials/interpret", {

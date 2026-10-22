@@ -1,4 +1,5 @@
 import { gen2TrialEnabled } from "./gen2-rollout";
+import { activeGift } from "./gift-access";
 // Public product terms. Money in the ledger is integer microdollars, not floats.
 export const MICROS_PER_CREDIT = 25_000;
 export const FREE_ALLOWANCE_MICROS = 300_000;
@@ -77,6 +78,16 @@ export const credits = (micros: number) =>
   Math.round((micros / MICROS_PER_CREDIT) * 1000) / 1000;
 export const dollars = (micros: number) => micros / 1_000_000;
 
+export type GiftAccess = {
+  id: string;
+  tier: "study" | "plus";
+  issuedAt: string;
+  expiresAt: string;
+  issuedBy: string;
+  initialMicros: number;
+  remainingMicros: number;
+};
+
 export type Wallet = {
   monthly: number;
   bank: number;
@@ -88,6 +99,9 @@ export type BillingAccount = {
   email: string | null;
   plan: PlanId;
   family: boolean;
+  gift?: GiftAccess;
+  adminGrantedAt?: string;
+  knicksApprovedAt?: string;
   createdAt: string;
   paidUntil: string | null;
   periodStart: string | null;
@@ -116,6 +130,14 @@ export type LedgerEntry = {
     | "settle"
     | "uncertain"
     | "family"
+    | "gift"
+    | "gift-revoke"
+    | "family-revoke"
+    | "knicks-invite"
+    | "knicks-redeem"
+    | "knicks-revoke-invite"
+    | "admin-grant"
+    | "admin-revoke"
     | "renewal"
     | "purchase"
     | "expiry"
@@ -138,6 +160,7 @@ export type UsageReceipt = {
   completedAt: string | null;
   status: "reserved" | "completed" | "failed" | "uncertain";
   family: boolean;
+  giftReservation?: { giftId: string; amountMicros: number };
   reserved: number;
   allocation: Wallet;
   costMicros: number | null;
@@ -160,7 +183,7 @@ export function activePlan(account: BillingAccount, now = Date.now()): PlanId {
     ? "ultra"
     : account.paidUntil && Date.parse(account.paidUntil) > now
       ? account.plan
-      : "free";
+      : activeGift(account, now)?.tier ?? "free";
 }
 export const hasPredictions = (account: BillingAccount) =>
   gen2TrialEnabled() || account.family || activePlan(account) !== "free";

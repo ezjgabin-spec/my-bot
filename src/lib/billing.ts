@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { AppError, requireUser } from "./server";
 import { isCloud } from "./cloud";
+import { activeGift, takeGift, restoreUnusedGift, canRedeemKnicks } from "./gift-access";
 import { gen2TrialEnabled, gen2FreeBudgetMicros, nextUtcMonth, GEN2_FREE_TESTS } from "./gen2-rollout";
 import { updateLocalData, type LocalData } from "./local-store";
 import {
@@ -130,6 +131,7 @@ export async function billingSummary() {
       plan: activePlan(a),
       family: a.family,
       balance: a.balance,
+      gift: a.gift ? { tier: a.gift.tier, expiresAt: a.gift.expiresAt, remainingMicros: a.gift.remainingMicros, initialMicros: a.gift.initialMicros } : null,
       freeTests: a.freeTests,
       nextFreeAt: a.nextFreeAt,
       paidUntil: a.paidUntil,
@@ -150,10 +152,35 @@ export async function billingSummary() {
 
 // The temporary code is stored only as a server-side digest. Set the hash to
 // "disabled" to stop new redemptions; existing family entitlements persist.
-const TEMPORARY_CODE_HASH =
-  "3334815b03ad192fc39b70040e5f8ecd3cba5a8a92711379e6a5748ad85b63a4";
+const TEMPORARY_CODE_HASH = "disabled"; // No built-in, shareable code.
 export async function redeemFamilyCode(code: string) {
   const user = await requireUser();
+  // The short beta phrase is NOT a credential. A verified account must first
+  // be personally approved by the primary owner for one redemption.
+  // This never grants a site-admin role.
+  if (code.trim().toLowerCase() === "knicks") {
+    if (process.env.ENABLE_KNICKS_CODE === "0")
+      throw new AppError("Knicks beta invitations are currently closed.", 410);
+    const outcome = await updateLocalData((data) => {
+      const a = accountFor(data, user, !isCloud());
+      if (a.family) return "already";
+      if (!canRedeemKnicks(a, user)) return "not-invited";
+      a.family = true;
+      a.knicksApprovedAt = undefined; // Single use: revoking cannot be bypassed by re-redeeming.
+      entry(data, "knicks-redeem", zeroWallet(),
+        "One-use owner-approved Knicks beta access redeemed");
+      return "ok";
+    });
+    if (outcome === "not-invited")
+      throw new AppError(
+        "Knicks only works for invited accounts. Ask the owner to approve your signed-in email.",
+        403,
+      );
+    return;
+  }
+  // Obsolete shared codes remain disabled unless explicitly re-enabled by the owner.
+  if (process.env.ENABLE_LEGACY_FAMILY_CODES !== "1")
+    throw new AppError("Shared access codes are retired. Ask the owner for a personal trial.", 410);
   const hash = process.env.FAMILY_CODE_SHA256 ?? TEMPORARY_CODE_HASH;
   const supplied = createHash("sha256").update(code.trim()).digest("hex");
   const valid =
@@ -230,6 +257,7 @@ export function spendable(a: BillingAccount) {
     a.balance.bank +
     a.balance.monthly +
     a.balance.purchased +
+    (activeGift(a)?.remainingMicros ?? 0) +
     (activePlan(a) === "free" ? a.balance.free : 0)
   );
 }
@@ -248,8 +276,14 @@ export async function reserveUsage(
         402,
       );
     const allocation = zeroWallet();
+    let giftReservation: { giftId: string; amountMicros: number } | undefined;
     if (!a.family) {
       let remaining = amount;
+      const gift = takeGift(a, remaining);
+      if (gift) {
+        giftReservation = { giftId: gift.id, amountMicros: gift.amount };
+        remaining -= gift.amount;
+      }
       const order: (keyof Wallet)[] =
         activePlan(a) === "free"
           ? ["free", "bank", "monthly", "purchased"]
@@ -268,6 +302,7 @@ export async function reserveUsage(
       completedAt: null,
       status: "reserved",
       family: a.family,
+      giftReservation,
       reserved: amount,
       allocation,
       costMicros: null,
@@ -350,7 +385,18 @@ export function settleUsageRecord(
   receipt.providerId = result?.providerId ?? null;
   receipt.overrunMicros = Math.max(0, cost - receipt.reserved);
   receipt.chargedMicros = receipt.family ? 0 : Math.min(cost, receipt.reserved);
-  let remaining = receipt.chargedMicros;
+  // Gift usage is isolated from paid or banked credits. Expired/revoked gift
+  // reservations can finish, but unused gift value cannot reactivate a grant.
+  const giftAllocation = receipt.giftReservation;
+  const giftedUsed = giftAllocation ? Math.min(receipt.chargedMicros, giftAllocation.amountMicros) : 0;
+  if (giftAllocation) {
+    restoreUnusedGift(
+      a,
+      giftAllocation.giftId,
+      giftAllocation.amountMicros - giftedUsed,
+    );
+  }
+  let remaining = receipt.chargedMicros - giftedUsed;
   const returned = zeroWallet();
   const order: (keyof Wallet)[] = ["free", "bank", "monthly", "purchased"];
   for (const bucket of order) {

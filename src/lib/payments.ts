@@ -19,18 +19,29 @@ async function setting(name: string) {
     ? (bindings[name] as string)
     : (process.env[name] ?? "");
 }
-export async function isBillingAdmin() {
+// Primary owners come exclusively from protected Cloudflare configuration.
+// A delegated admin can never grant other admins or become a primary owner.
+export async function isPrimaryOwner() {
   const user = await requireUser();
   if (!isCloud()) return true;
   const allowed = (await setting("BILLING_ADMIN_EMAILS"))
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  return (
-    "email" in user &&
-    typeof user.email === "string" &&
-    allowed.includes(user.email)
-  );
+  return "email" in user && typeof user.email === "string" &&
+    allowed.includes(user.email.trim().toLowerCase());
+}
+
+export async function isBillingAdmin() {
+  const user = await requireUser();
+  if (await isPrimaryOwner()) return true;
+  if (!isCloud() || !("email" in user) || typeof user.email !== "string") return false;
+  // Only the authenticated person's own stored role counts. Request payloads,
+  // gifts and coupon redemptions cannot grant administrative privileges.
+  const account = await billingAccount();
+  return account.id === user.id &&
+    account.email?.toLowerCase() === user.email.toLowerCase() &&
+    typeof account.adminGrantedAt === "string" && account.adminGrantedAt.length > 0;
 }
 export async function paymentConfiguration() {
   const base =

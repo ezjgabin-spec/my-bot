@@ -22,9 +22,11 @@ import {
 } from "@/lib/plans";
 import { PageHeader, ErrorMessage } from "@/components/ui";
 import { CodeRedemption } from "@/components/code-redemption";
+
 type Summary = {
   plan: PlanId;
   family: boolean;
+  gift?: {tier:"study"|"plus";expiresAt:string;remainingMicros:number;initialMicros:number}|null;
   balance: Balances;
   freeTests: number;
   nextFreeAt: string;
@@ -133,6 +135,8 @@ export default function Pricing() {
                 {data.freeTests} free test available · next refresh{" "}
                 {new Date(data.nextFreeAt).toLocaleDateString()}
               </p>
+            ) : data.gift && Date.parse(data.gift.expiresAt)>Date.now() && !(data.paidUntil && Date.parse(data.paidUntil)>Date.now()) ? (
+              <p>Gifted {data.gift.tier==="plus"?"StudyBot Plus":"StudyBot"} through {new Date(data.gift.expiresAt).toLocaleDateString()} · {"$"+(data.gift.remainingMicros/1_000_000).toFixed(2)} AI budget remaining</p>
             ) : (
               <p>
                 Current paid period ends{" "}
@@ -299,6 +303,7 @@ export default function Pricing() {
           or long written exams may need credits.
         </p>
       </section>
+      <section className="panel form-panel"><h2>Personal beta access</h2><p className="helper">Invited testers can redeem a one-use code after the owner approves their verified email. An unapproved account cannot unlock access just by knowing the code. A gifted trial can also be issued directly to your account. Neither method gives admin permissions.</p></section>
       <CodeRedemption onRedeem={() => void load()} />
       <section className="panel form-panel">
         <div className="billing-section-heading">

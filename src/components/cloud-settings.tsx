@@ -2,7 +2,7 @@
 import { PageHeader } from "./ui";
 import { AppearanceSettings } from "./appearance-settings";
 import { useWorkspace } from "./workspace";
-import { CodeRedemption } from "./code-redemption";
+
 import Link from "next/link";
 export function CloudSettings() {
   const { aiReady, email, connection, error, authMethod } = useWorkspace();
@@ -14,7 +14,7 @@ export function CloudSettings() {
         description="Your notes, practice tests, and grades are private to your signed-in account."
       />
       <AppearanceSettings />
-      <CodeRedemption />
+      <p className="helper">Need beta access? The StudyBot owner can gift a limited trial directly to your signed-in email. Shared codes have been retired.</p>
       <section className="panel form-panel" style={{ maxWidth: 760 }}>
         <h2>Signed in as</h2>
         <p>{email || "Loading your account…"}</p>

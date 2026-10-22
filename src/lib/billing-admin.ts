@@ -2,7 +2,7 @@ import "server-only";
 import { cloudBindings, isCloud } from "./cloud";
 import { readLocalData, updateLocalData, type LocalData } from "./local-store";
 import { accountFor, entry, settleUsageRecord } from "./billing";
-import { isBillingAdmin } from "./payments";
+import { isBillingAdmin, isPrimaryOwner } from "./payments";
 import { AppError } from "./server";
 import {
   activePlan,
@@ -36,8 +36,8 @@ export async function reconcileUsage(
   costMicros: number,
   reference: string,
 ) {
-  if (!(await isBillingAdmin()))
-    throw new AppError("Owner access is required.", 403);
+  if (!(await isPrimaryOwner()))
+    throw new AppError("Primary owner access is required.", 403);
   const change = (data: LocalData) => {
     const account = accountFor(data, { id: userId }, !isCloud());
     const receipt = data.billingUsage.find((r) => r.id === receiptId);
