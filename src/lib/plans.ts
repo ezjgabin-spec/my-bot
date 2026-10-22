@@ -100,6 +100,8 @@ export type BillingAccount = {
   plan: PlanId;
   family: boolean;
   gift?: GiftAccess;
+  adminGrantedAt?: string;
+  knicksApprovedAt?: string;
   createdAt: string;
   paidUntil: string | null;
   periodStart: string | null;
@@ -131,6 +133,11 @@ export type LedgerEntry = {
     | "gift"
     | "gift-revoke"
     | "family-revoke"
+    | "knicks-invite"
+    | "knicks-redeem"
+    | "knicks-revoke-invite"
+    | "admin-grant"
+    | "admin-revoke"
     | "renewal"
     | "purchase"
     | "expiry"
