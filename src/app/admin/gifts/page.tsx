@@ -20,6 +20,8 @@ type Account = {
   email: string | null;
   plan: string;
   family: boolean;
+  adminGrantedAt: string | null;
+  knicksApprovedAt: string | null;
   isPaidSubscriber: boolean;
   gift: GiftStatus | null;
 };
@@ -55,6 +57,8 @@ export default function OwnerGifts() {
     ), [data]);
   const active = visible.filter((a) => a.gift?.active);
   const family = visible.filter((a) => a.family);
+  const admins = visible.filter((a) => a.adminGrantedAt);
+  const invites = visible.filter((a) => a.knicksApprovedAt);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -92,19 +96,42 @@ export default function OwnerGifts() {
     finally { setBusy(false); }
   }
 
+
+  async function manageAccess(email: string, action: "approve-knicks"|"revoke-knicks-approval"|"grant-admin"|"revoke-admin") {
+    if (busy) return;
+    const explanation = action === "grant-admin"
+      ? "Give " + email + " delegated administrator privileges? They can inspect site usage and research, but cannot create administrators, issue owner gifts or change the primary owner."
+      : action === "revoke-admin" ? "Remove delegated admin privileges from " + email + "?"
+      : action === "approve-knicks"
+        ? "Approve " + email + " to redeem the Knicks code ONCE for unlimited Ultra? This lets them make unmetered AI requests and creates ongoing API expenses until revoked."
+        : "Remove the unused Knicks invitation for " + email + "?";
+    if (!window.confirm(explanation)) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await api("/api/admin/gifts", { method:"POST", body:JSON.stringify({action,email}) });
+      setNotice(action === "approve-knicks" ? "Knicks invitation approved for " + email
+        : action === "revoke-knicks-approval" ? "Knicks invitation removed for " + email
+        : action === "grant-admin" ? "Delegated admin granted to " + email
+        : "Admin permission removed from " + email);
+      await load();
+    } catch (e) {setError((e as Error).message);} finally {setBusy(false);}
+  }
+
   if (connection === "ready" && !owner)
     return <section className="panel form-panel"><h2>Owner access required</h2><p>Only the verified StudyBot owner can create or revoke gifts.</p><Link href="/" className="button secondary">Back home</Link></section>;
 
   return <div className="owner-gifts">
     <PageHeader eyebrow="PRIVATE OWNER CONTROLS" title="Gifts & beta access"
-      description="Grant time-limited access and a fixed AI budget to verified accounts. No shareable passwords or permanent unlimited gift codes." />
+      description="Issue personal trials, approve the Knicks unlimited code for individual accounts, and control delegated admins. Only the primary owner may make changes." />
     <ErrorMessage message={error} />
     {notice && <p className="notice" role="status">{notice}</p>}
     {data && <div className="gift-metrics">
       <section className="panel"><Gift size={18} /><strong>{active.length}</strong><span>Active personal gifts</span></section>
       <section className="panel"><Users size={18} /><strong>{visible.length}</strong><span>Registered accounts shown</span></section>
       <section className="panel"><Wallet size={18} /><strong>{money(active.reduce((s,a)=>s+(a.gift?.remainingMicros??0),0))}</strong><span>Unspent gift AI allowance</span></section>
-      <section className="panel"><ShieldCheck size={18} /><strong>{family.length}</strong><span>Legacy unlimited accounts</span></section>
+      <section className="panel"><ShieldCheck size={18} /><strong>{family.length}</strong><span>Unlimited accounts</span></section>
+      <section className="panel"><ShieldCheck size={18} /><strong>{admins.length}</strong><span>Delegated admins</span></section>
+      <section className="panel"><Gift size={18} /><strong>{invites.length}</strong><span>Unused Knicks invites</span></section>
     </div>}
     <div className="gift-layout">
       <section className="panel form-panel">
@@ -146,25 +173,32 @@ export default function OwnerGifts() {
         <h2><Clock3 size={20}/> Important limits</h2>
         <p>Personal grants are capped at 90 days and $10 of AI processing per gift. They cannot create permanent unlimited accounts.</p>
         <p className="helper">Gifted budgets are separate from paid or banked credits. Unused gift funds are never converted to paid credits, and disappear from availability after expiration or revocation.</p>
-        <p className="helper">Old shared-code redemptions are disabled by default in the updated build. Already-redeemed family accounts stay unlimited until you revoke each one below. If the legacy code has been explicitly re-enabled in Cloudflare settings, turn it off there too.</p>
+        <p className="helper"><strong>Knicks</strong> unlocks unlimited Ultra for a verified account only after you approve that exact email below. The approval is consumed when redeemed; shared code alone is useless. Admin permissions are completely separate. Unlimited members create real AI costs, so revoke access when the beta ends.</p>
         <Link href="/admin/ai-costs" className="button secondary">View AI spending</Link>
       </section>
     </div>
     <section className="panel form-panel">
-      <div className="gift-heading"><div><h2>Account access control</h2><p className="helper">Revoke active personal gifts or legacy unlimited family access. Actions do not delete user data or Stripe subscriptions.</p></div><button type="button" className="button secondary small" onClick={()=>void load()} disabled={busy}><RotateCcw size={15}/> Refresh</button></div>
+      <div className="gift-heading"><div><h2>Account access control</h2><p className="helper">Approve Knicks redemption, grant or revoke a delegated admin, and manage existing gifts. Changes never delete schoolwork or paid subscriptions.</p></div><button type="button" className="button secondary small" onClick={()=>void load()} disabled={busy}><RotateCcw size={15}/> Refresh</button></div>
       {data?.limited&&<p className="notice">Showing 300 accounts. For others, you can still gift by verified email.</p>}
       <div className="gift-table"><table>
-        <thead><tr><th>Account</th><th>Access</th><th>Expires</th><th>Gift budget left</th><th>Manage</th></tr></thead>
+        <thead><tr><th>Account</th><th>Access</th><th>Role</th><th>Code invitation</th><th>Expires</th><th>Gift budget left</th><th>Manage</th></tr></thead>
         <tbody>{visible.filter(a=>a.email?.toLowerCase()!==myEmail?.toLowerCase()).map(a=><tr key={a.id}>
           <td>{a.email ?? "Unknown email"}</td>
-          <td>{a.family?"Permanent family (unlimited)":a.gift?.active ? "Gifted "+a.gift.tier : a.isPaidSubscriber?"Paid subscriber":a.plan==="free"?"Free":a.plan}</td>
+          <td>{a.family?"Unlimited Ultra":a.gift?.active ? "Gifted "+a.gift.tier : a.isPaidSubscriber?"Paid subscriber":a.plan==="free"?"Free":a.plan}</td>
+          <td>{a.adminGrantedAt?"Delegated admin":"Member"}</td>
+          <td>{a.knicksApprovedAt?"Knicks approved":"—"}</td>
           <td>{a.gift?.active ? new Date(a.gift.expiresAt).toLocaleDateString() : "—"}</td>
           <td>{a.gift?.active ? money(a.gift.remainingMicros) : "—"}</td>
-          <td>
-            {a.email && a.family ? <button type="button" className="button secondary small" disabled={busy} onClick={()=>void revoke(a.email!,"revoke-family")}>Revoke unlimited</button> :
-            a.email && a.gift?.active ? <button type="button" className="button secondary small" disabled={busy} onClick={()=>void revoke(a.email!,"revoke-gift")}>Revoke gift</button> :
-            <span className="muted">—</span>}
-          </td>
+          <td><div className="gift-actions">
+            {a.email && a.family && <button type="button" className="button secondary small" disabled={busy} onClick={()=>void revoke(a.email!,"revoke-family")}>Revoke unlimited</button>}
+            {a.email && a.gift?.active && <button type="button" className="button secondary small" disabled={busy} onClick={()=>void revoke(a.email!,"revoke-gift")}>Revoke gift</button>}
+            {a.email && !a.family && (a.knicksApprovedAt
+             ? <button type="button" className="button secondary small" disabled={busy} onClick={()=>void manageAccess(a.email!,"revoke-knicks-approval")}>Cancel Knicks</button>
+             : <button type="button" className="button secondary small" disabled={busy} onClick={()=>void manageAccess(a.email!,"approve-knicks")}>Approve Knicks</button>)}
+            {a.email && (a.adminGrantedAt
+             ? <button type="button" className="button secondary small" disabled={busy} onClick={()=>void manageAccess(a.email!,"revoke-admin")}>Revoke admin</button>
+             : <button type="button" className="button secondary small" disabled={busy} onClick={()=>void manageAccess(a.email!,"grant-admin")}>Grant admin</button>)}
+          </div></td>
         </tr>)}</tbody>
       </table></div>
       {!data && !error && <p>Loading account access…</p>}
