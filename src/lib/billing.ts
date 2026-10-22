@@ -151,7 +151,7 @@ export async function billingSummary() {
 // The temporary code is stored only as a server-side digest. Set the hash to
 // "disabled" to stop new redemptions; existing family entitlements persist.
 const TEMPORARY_CODE_HASH =
-  "3334815b03ad192fc39b70040e5f8ecd3cba5a8a92711379e6a5748ad85b63a4";
+  "5bb2096624d22498e092e734108bfbb836ecdf46344fbd2de7845d82b6f1c41f";
 export async function redeemFamilyCode(code: string) {
   const user = await requireUser();
   const hash = process.env.FAMILY_CODE_SHA256 ?? TEMPORARY_CODE_HASH;

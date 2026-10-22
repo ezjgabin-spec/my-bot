@@ -206,3 +206,13 @@ describe("metered credits and entitlements", () => {
     ).toThrow();
   });
 });
+
+it("accepts the new default family code and retires the old default",async()=>{
+ delete process.env.FAMILY_CODE_SHA256;
+ await expect(redeemFamilyCode("i-like-cars")).rejects.toMatchObject({status:400});
+ await redeemFamilyCode("Knicks");
+ expect((await billingAccount()).family).toBe(true);
+ const receipt=await reserveUsage(reservation,500000000,500000000);
+ expect(receipt.family).toBe(true);
+ expect(receipt.allocation).toEqual({monthly:0,bank:0,purchased:0,free:0});
+});
