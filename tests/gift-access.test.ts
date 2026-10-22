@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeGift, createGift, ownerGiftAction, takeGift, restoreUnusedGift } from "../src/lib/gift-access";
+import { activeGift, createGift, ownerGiftAction, takeGift, restoreUnusedGift, canRedeemKnicks } from "../src/lib/gift-access";
 import { activePlan, zeroWallet, type BillingAccount } from "../src/lib/plans";
 
 const issued = new Date("2026-10-20T12:00:00.000Z");
@@ -62,5 +62,31 @@ describe("gifted access and metering", () => {
     expect(restoreUnusedGift(user, reservation.id, 100_000, now + 14 * 86_400_000)).toBe(0);
     user.gift = undefined;
     expect(restoreUnusedGift(user, reservation.id, 100_000, now + 100)).toBe(0);
+  });
+});
+
+describe("Knicks one-use invite and delegated admin separation", () => {
+  it("requires a matching verified account, not merely the public code", () => {
+    const user = account();
+    expect(canRedeemKnicks(user, {id:user.id,email:user.email!})).toBe(false);
+    user.knicksApprovedAt = issued.toISOString();
+    expect(canRedeemKnicks(user, {id:user.id,email:"STUDENT@example.com"})).toBe(true);
+    expect(canRedeemKnicks(user, {id:"stranger",email:user.email!})).toBe(false);
+    expect(canRedeemKnicks(user, {id:user.id,email:"stranger@example.com"})).toBe(false);
+    expect(canRedeemKnicks(user, {id:user.id})).toBe(false);
+    user.knicksApprovedAt = undefined;
+    expect(canRedeemKnicks(user, {id:user.id,email:user.email!})).toBe(false);
+  });
+  it("refuses re-redemption after unlimited access has been granted", () => {
+    const user = account();
+    user.knicksApprovedAt = issued.toISOString();
+    user.family = true;
+    expect(canRedeemKnicks(user, {id:user.id,email:user.email!})).toBe(false);
+  });
+  it("restricts admin mutations to known actions and verified emails", () => {
+    expect(ownerGiftAction.parse({action:"grant-admin",email:"student@example.com"}).action).toBe("grant-admin");
+    expect(ownerGiftAction.parse({action:"approve-knicks",email:"student@example.com"}).action).toBe("approve-knicks");
+    expect(ownerGiftAction.safeParse({action:"grant-admin",email:"*"}).success).toBe(false);
+    expect(ownerGiftAction.safeParse({action:"grant-admin",email:"student@example.com",owner:true}).success).toBe(false);
   });
 });
