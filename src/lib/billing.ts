@@ -155,7 +155,30 @@ export async function billingSummary() {
 const TEMPORARY_CODE_HASH = "disabled"; // No built-in, shareable code.
 export async function redeemFamilyCode(code: string) {
   const user = await requireUser();
-  // Legacy shared codes are disabled by default. Owner-issued gifts have no codes.
+  // The short beta phrase is NOT a credential. A verified account must first
+  // be personally approved by the primary owner for one redemption.
+  // This never grants a site-admin role.
+  if (code.trim().toLowerCase() === "knicks") {
+    if (process.env.ENABLE_KNICKS_CODE === "0")
+      throw new AppError("Knicks beta invitations are currently closed.", 410);
+    const outcome = await updateLocalData((data) => {
+      const a = accountFor(data, user, !isCloud());
+      if (a.family) return "already";
+      if (!a.knicksApprovedAt) return "not-invited";
+      a.family = true;
+      a.knicksApprovedAt = undefined; // Single use: revoking cannot be bypassed by re-redeeming.
+      entry(data, "knicks-redeem", zeroWallet(),
+        "One-use owner-approved Knicks beta access redeemed");
+      return "ok";
+    });
+    if (outcome === "not-invited")
+      throw new AppError(
+        "Knicks only works for invited accounts. Ask the owner to approve your signed-in email.",
+        403,
+      );
+    return;
+  }
+  // Obsolete shared codes remain disabled unless explicitly re-enabled by the owner.
   if (process.env.ENABLE_LEGACY_FAMILY_CODES !== "1")
     throw new AppError("Shared access codes are retired. Ask the owner for a personal trial.", 410);
   const hash = process.env.FAMILY_CODE_SHA256 ?? TEMPORARY_CODE_HASH;
