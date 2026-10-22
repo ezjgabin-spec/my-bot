@@ -39,6 +39,9 @@
   .paper-print-options { display: grid; gap: 8px; }
   .paper-print-options p { white-space: pre-wrap; margin: 0 0 5px; line-height: 1.4; }
   .paper-option-letter { display: inline-block; min-width: 26px; font-weight: 700; }
+  .paper-print-answer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 15px 0 8px; font-size: 10pt; }
+  .paper-print-choice { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+  .paper-print-choice i { display: inline-block; width: 16px; height: 16px; border: 1.5px solid #222; border-radius: 50%; }
   .paper-work-space { height: 2.4in; background: repeating-linear-gradient(to bottom, transparent 0, transparent 33px, #b8b8b8 34px); }
   .paper-work-space.math { height: 3.4in; }
   .paper-print-footer { font-size: 9pt; text-align: center; padding: 15px; border-top: 1px solid #aaa; }
