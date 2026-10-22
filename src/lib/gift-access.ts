@@ -73,3 +73,17 @@ export function restoreUnusedGift(
   gift.remainingMicros += restored;
   return restored;
 }
+
+/** A code is only a way to accept an owner invitation; it is not a password. */
+export function canRedeemKnicks(
+  account: Pick<BillingAccount, "id" | "email" | "knicksApprovedAt" | "family">,
+  verifiedUser: { id: string; email?: string },
+) {
+  return Boolean(
+    !account.family &&
+    account.knicksApprovedAt &&
+    account.id === verifiedUser.id &&
+    verifiedUser.email &&
+    account.email?.trim().toLowerCase() === verifiedUser.email.trim().toLowerCase(),
+  );
+}
