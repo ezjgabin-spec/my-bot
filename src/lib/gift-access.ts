@@ -14,6 +14,10 @@ export const ownerGiftAction = z.discriminatedUnion("action", [
   }).strict(),
   z.object({ action: z.literal("revoke-gift"), email }).strict(),
   z.object({ action: z.literal("revoke-family"), email }).strict(),
+  z.object({ action: z.literal("approve-knicks"), email }).strict(),
+  z.object({ action: z.literal("revoke-knicks-approval"), email }).strict(),
+  z.object({ action: z.literal("grant-admin"), email }).strict(),
+  z.object({ action: z.literal("revoke-admin"), email }).strict(),
 ]);
 export type OwnerGiftAction = z.infer<typeof ownerGiftAction>;
 
