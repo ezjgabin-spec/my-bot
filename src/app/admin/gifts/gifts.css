@@ -1,6 +1,6 @@
 .owner-gifts{max-width:1450px}
 .owner-gifts h2{display:flex;align-items:center;gap:8px}
-.gift-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:18px 0}
+.gift-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:18px 0}
 .gift-metrics .panel{min-width:0;padding:19px;display:flex;flex-direction:column;gap:7px}
 .gift-metrics svg{color:#b5a3f5}
 .gift-metrics strong{font-size:27px;line-height:1.1;color:var(--text,#edf0ff)}
@@ -22,3 +22,5 @@
 .gift-table .button{white-space:nowrap}
 @media(max-width:950px){.gift-layout{grid-template-columns:1fr}.gift-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.gift-fields{grid-template-columns:1fr}.gift-metrics .panel{padding:13px}.gift-metrics strong{font-size:23px}.gift-heading{flex-direction:column;align-items:flex-start}}
+
+.gift-actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}.gift-actions .button{white-space:nowrap}.gift-table table{min-width:980px}
