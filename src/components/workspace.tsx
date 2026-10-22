@@ -120,6 +120,7 @@ const navigation = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/create", label: "Create practice test", icon: Plus },
   { href: "/flashcards", label: "Flashcard Studio", icon: Layers3 },
+  { href: "/writing", label: "Writing Lab", icon: BookOpen },
   { href: "/history", label: "Tests & history", icon: History },
   {
     href: "/analytics",

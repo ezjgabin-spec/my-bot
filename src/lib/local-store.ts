@@ -47,6 +47,7 @@ export type LocalData = State & {
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
   flashcardDrafts: FlashcardDraft[];
+  writingEntries: import("./writing").WritingEntry[];
   researchSnapshots: ResearchSnapshot[];
   realityChecks: RealityCheck[];
   mathWork: import("./math-work").MathWork[];
@@ -70,6 +71,7 @@ export const emptyData = (): LocalData => ({
   materials: [],
   flashcardDecks: [],
   flashcardDrafts: [],
+  writingEntries: [],
   researchSnapshots: [],
   realityChecks: [],
   mathWork: [],
@@ -105,6 +107,7 @@ async function load(): Promise<LocalData> {
     parsed.flashcardDecks ??= [];
     parsed.flashcardDrafts ??= [];
     parsed.mathWork ??= [];
+    parsed.writingEntries ??= [];
     parsed.researchSnapshots ??= [];
     parsed.realityChecks ??= [];
     parsed.featureRequests ??= [];

@@ -1,0 +1,18 @@
+import {beforeEach,afterEach,it,expect,vi} from "vitest";
+import {mkdtemp,rm} from "node:fs/promises";import path from "node:path";import os from "node:os";
+import {structured} from "../src/lib/ai";
+import {runWriting,writingEstimate} from "../src/lib/writing-service";
+import {independentEssayPayload,type WritingInput} from "../src/lib/writing";
+import {readLocalData,updateLocalData} from "../src/lib/local-store";
+import {accountFor} from "../src/lib/billing";
+import {POST} from "../src/app/api/writing/route";
+vi.mock("../src/lib/ai",()=>({structured:vi.fn(),withAiLock:async(_id:string,run:()=>Promise<unknown>)=>run()}));
+const input:WritingInput={requestId:crypto.randomUUID(),title:"Essay",action:"grade",essay:"My thesis and supporting evidence.",prompt:"Explain the theme",teacherInstructions:"Use sources",rubric:"Clear argument",target:"A",autoHumanize:false,benchmark:false,teacherComments:""};
+const grade={estimate:83,lower:75,upper:91,uncertainty:"Teacher standards vary",criteria:["thesis","evidence","analysis","organization","grammar","clarity"].map(name=>({name,feedback:"Be specific"})),strengths:["Thesis"],improvements:["More evidence"],rubricAnalysis:"Partly meets rubric"};
+let dir:string;
+beforeEach(async()=>{dir=await mkdtemp(path.join(os.tmpdir(),"writing-test-"));vi.stubEnv("STUDYPREDICT_DATA_DIR",dir);vi.mocked(structured).mockReset().mockResolvedValue(grade);await updateLocalData(d=>{accountFor(d,{id:"local-owner"},false);});});
+afterEach(async()=>{vi.unstubAllEnvs();await rm(dir,{recursive:true,force:true});});
+const req=(body:unknown)=>new Request("http://localhost:3000/api/writing",{method:"POST",headers:{origin:"http://localhost:3000","content-type":"application/json","x-confirm-ai":"1"},body:JSON.stringify(body)});
+it("enforces Study grading and Plus revisions on the server",async()=>{expect((await POST(req(input))).status).toBe(403);await updateLocalData(d=>{d.billingAccounts[0].plan="study";d.billingAccounts[0].paidUntil="2099-01-01";});expect((await POST(req({...input,action:"improve"}))).status).toBe(403);expect((await POST(req(input))).status).toBe(200);expect(structured).toHaveBeenCalledTimes(1);});
+it("hides actual benchmark grade and teacher comments from independent AI estimation",async()=>{const benchmark={...input,benchmark:true,actualGrade:100,teacherComments:"A+, 100/100"};expect(JSON.stringify(independentEssayPayload(benchmark))).not.toContain("100");await runWriting(benchmark);const payload=vi.mocked(structured).mock.calls[0][2];expect(JSON.stringify(payload)).not.toContain("100");expect((await readLocalData()).writingEntries[0].actualGrade).toBe(100);await runWriting(benchmark);expect(structured).toHaveBeenCalledTimes(1);});
+it("charges distinct rewrite and Humanize operations, preserving intermediate output after a failed second step",async()=>{vi.mocked(structured).mockResolvedValueOnce({text:"Revised essay"}).mockRejectedValueOnce(new Error("timeout"));const rewrite={...input,action:"improve" as const,autoHumanize:true};await expect(runWriting(rewrite)).rejects.toThrow("timeout");const saved=(await readLocalData()).writingEntries[0];expect(saved.status).toBe("failed");expect(saved.revision).toBe("Revised essay");expect(vi.mocked(structured).mock.calls.map(c=>c[4])).toEqual(["rewrite","humanize"]);expect(writingEstimate(rewrite).steps).toBe(2);expect(writingEstimate(rewrite).estimatedCredits).toBeGreaterThan(writingEstimate({...rewrite,autoHumanize:false}).estimatedCredits);await expect(runWriting(rewrite)).rejects.toThrow("running or failed");expect(structured).toHaveBeenCalledTimes(2);});
