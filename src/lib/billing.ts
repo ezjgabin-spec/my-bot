@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { AppError, requireUser } from "./server";
 import { isCloud } from "./cloud";
-import { activeGift, takeGift, restoreUnusedGift } from "./gift-access";
+import { activeGift, takeGift, restoreUnusedGift, canRedeemKnicks } from "./gift-access";
 import { gen2TrialEnabled, gen2FreeBudgetMicros, nextUtcMonth, GEN2_FREE_TESTS } from "./gen2-rollout";
 import { updateLocalData, type LocalData } from "./local-store";
 import {
@@ -164,7 +164,7 @@ export async function redeemFamilyCode(code: string) {
     const outcome = await updateLocalData((data) => {
       const a = accountFor(data, user, !isCloud());
       if (a.family) return "already";
-      if (!a.knicksApprovedAt) return "not-invited";
+      if (!canRedeemKnicks(a, user)) return "not-invited";
       a.family = true;
       a.knicksApprovedAt = undefined; // Single use: revoking cannot be bypassed by re-redeeming.
       entry(data, "knicks-redeem", zeroWallet(),
