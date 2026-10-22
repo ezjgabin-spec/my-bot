@@ -21,6 +21,7 @@ import {
   type UsageReceipt,
 } from "@/lib/plans";
 import { PageHeader, ErrorMessage } from "@/components/ui";
+import { CodeRedemption } from "@/components/code-redemption";
 
 type Summary = {
   plan: PlanId;
@@ -302,7 +303,8 @@ export default function Pricing() {
           or long written exams may need credits.
         </p>
       </section>
-      <section className="panel form-panel"><h2>Personal beta access</h2><p className="helper">Shared permanent access codes are retired. For beta testing, the StudyBot owner can grant a private, limited trial directly to your signed-in email account. Existing schoolwork is never deleted when a gift expires.</p></section>
+      <section className="panel form-panel"><h2>Personal beta access</h2><p className="helper">Invited testers can redeem a one-use code after the owner approves their verified email. An unapproved account cannot unlock access just by knowing the code. A gifted trial can also be issued directly to your account. Neither method gives admin permissions.</p></section>
+      <CodeRedemption onRedeem={() => void load()} />
       <section className="panel form-panel">
         <div className="billing-section-heading">
           <h2>Recent AI usage</h2>
