@@ -285,7 +285,14 @@ export default function PaperAttemptPage({
             {q.kind === "multiple_choice" ? (
               <div className="paper-print-options">{(q.options ?? []).map((option, i) => (
                 <p key={i}><span className="paper-option-letter">{letter(i)}.</span> {option}</p>
-              ))}</div>
+              ))}
+                <div className="paper-print-answer-row">
+                  <strong>Mark your answer:</strong>
+                  {(q.options ?? []).map((_, i) => (
+                    <span className="paper-print-choice" key={i}><i aria-hidden="true" /> {letter(i)}</span>
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className={q.kind === "math" ? "paper-work-space math" : "paper-work-space"} aria-label="Space to write your answer" />
             )}
