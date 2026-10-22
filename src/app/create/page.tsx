@@ -20,6 +20,7 @@ import { api, formatLabel } from "@/lib/client";
 import { MAX_FILE_BYTES, MAX_MATERIAL_CHARACTERS } from "@/lib/material-limits";
 import { MAX_INTERPRETER_SECTIONS } from "@/lib/material-interpreter";
 import { FileInterpreter } from "@/components/file-interpreter";
+import { PhotoMaterialImport } from "@/components/photo-material-import";
 import {
   SUBJECTS,
   DIFFICULTIES,
@@ -99,8 +100,8 @@ function CreateTest() {
         await startTest(createdTest);
         return;
       }
-      if (materialMode === "interpret")
-        throw new Error("Read your file and save its study guide first.");
+      if (materialMode === "interpret" || materialMode === "photos")
+        throw new Error("Read your photos or file and save their study guide first.");
       let eid = examId;
       if (eid === "new") {
         setStage("Saving your school exam…");
@@ -313,6 +314,7 @@ function CreateTest() {
               {[
                 ["notes", "Paste notes"],
                 ["file", "Upload files"],
+                ["photos", "Photos of notes"],
                 ["interpret", "Interpret large file"],
                 ["link", "Paste a link"],
                 ["existing", "Saved materials"],
@@ -342,6 +344,16 @@ function CreateTest() {
                   More study material usually creates better questions.
                 </span>
               </label>
+            )}
+            {materialMode === "photos" && (
+              <PhotoMaterialImport
+                aiReady={aiReady}
+                onSaved={(material) => {
+                  setMaterials((items) => [...items, material]);
+                  setMaterialId(material.id);
+                  setMaterialMode("existing");
+                }}
+              />
             )}
             {materialMode === "file" && (
               <label className="upload-zone">

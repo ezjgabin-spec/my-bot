@@ -1,0 +1,48 @@
+.paper-test .paper-print-test { display: none; }
+.paper-test .paper-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+.paper-test .paper-scan-section { margin: 15px 0 24px; padding: 20px; border: 1px solid var(--border, #dcdce4); border-radius: 12px; background: var(--surface, transparent); }
+.paper-test .paper-scan-section h3 { margin: 0 0 10px; }
+.paper-test .paper-scan-label { margin: 10px 0; font-weight: 700; }
+.paper-test .paper-review-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 15px; margin: 16px 0; }
+.paper-test .paper-review-notice p { flex: 1; min-width: 220px; }
+.paper-test .paper-entry-list { display: grid; gap: 16px; margin-top: 20px; }
+.paper-test .paper-entry { padding: 16px; border: 1px solid var(--border, #dcdce4); border-radius: 12px; }
+.paper-test .paper-entry-title { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.paper-test .paper-entry-title span { color: var(--muted, #757389); font-size: 12px; }
+.paper-test .paper-letter-choices { display: flex; flex-wrap: wrap; gap: 9px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.paper-test .paper-letter { cursor: pointer; width: 47px; height: 43px; display: inline-flex; justify-content: center; align-items: center; border: 1px solid #aaa8b5; border-radius: 9px; font-weight: 700; }
+.paper-test .paper-letter.chosen { border: 2px solid var(--accent, #7360df); background: rgba(125, 102, 225, 0.14); }
+.paper-test .paper-letter:has(input:focus-visible) { outline: 3px solid var(--accent, #7360df); outline-offset: 3px; }
+.paper-test .paper-letter input { position: absolute; opacity: 0; }
+.paper-test .paper-written-answer { display: grid; gap: 12px; }
+.paper-test .paper-written-answer textarea { display: block; width: 100%; margin-top: 8px; }
+.paper-test .paper-photo-label { display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; padding: 9px 13px; width: fit-content; border: 1px solid var(--accent, #7360df); border-radius: 9px; font-size: 13px; }
+.paper-test .paper-photo-label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.paper-test .paper-photo-label:focus-within { outline: 3px solid var(--accent, #7360df); outline-offset: 3px; }
+@media print {
+  @page { margin: 0.6in; }
+  html, body { background: white !important; color: #111 !important; }
+  body * { visibility: hidden !important; }
+  .paper-test .paper-print-test, .paper-test .paper-print-test * { visibility: visible !important; }
+  .paper-test .paper-print-test { display: block !important; position: absolute; top: 0; left: 0; width: 100%; padding: 0; margin: 0; color: #111; background: white; font-family: Arial, sans-serif; font-size: 11pt; }
+  .paper-print-header strong { font-size: 10pt; }
+  .paper-print-header h1 { font-size: 19pt; margin: 12px 0 6px; }
+  .paper-print-header p { margin: 6px 0; }
+  .paper-print-header .paper-name-line { display: flex; justify-content: space-between; margin: 24px 0 18px; }
+  .paper-print-header .paper-print-instructions { padding-bottom: 14px; border-bottom: 1px solid #777; font-size: 10pt; }
+  .paper-print-question { margin: 0 0 24px; padding-top: 8px; break-inside: avoid; page-break-inside: avoid; }
+  .paper-print-number { display: flex; align-items: baseline; justify-content: space-between; }
+  .paper-print-number span { font-size: 9pt; color: #444; }
+  .paper-print-prompt { white-space: pre-wrap; font-size: 11pt; margin: 7px 0 12px; line-height: 1.45; }
+  .paper-print-passage { background: #f6f6f6; border: 1px solid #aaa; padding: 10px; white-space: pre-wrap; line-height: 1.4; }
+  .paper-print-passage p { margin: 8px 0 0; }
+  .paper-print-options { display: grid; gap: 8px; }
+  .paper-print-options p { white-space: pre-wrap; margin: 0 0 5px; line-height: 1.4; }
+  .paper-option-letter { display: inline-block; min-width: 26px; font-weight: 700; }
+  .paper-print-answer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 15px 0 8px; font-size: 10pt; }
+  .paper-print-choice { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+  .paper-print-choice i { display: inline-block; width: 16px; height: 16px; border: 1.5px solid #222; border-radius: 50%; }
+  .paper-work-space { height: 2.4in; background: repeating-linear-gradient(to bottom, transparent 0, transparent 33px, #b8b8b8 34px); }
+  .paper-work-space.math { height: 3.4in; }
+  .paper-print-footer { font-size: 9pt; text-align: center; padding: 15px; border-top: 1px solid #aaa; }
+}

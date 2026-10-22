@@ -31,6 +31,18 @@ The packaged app enables **Start when I sign in to Windows** on its first launch
 
 The PC must be awake and signed in for the app to run. It does not prevent sleep, run while the computer is shut down, or generate tests automatically in the background. Saved work remains available after a restart. Keep the extracted app folder in a permanent location; if you move it, save the startup setting again.
 
+## Paper-first practice tests and photo notes
+
+StudyPredict can create a practice test from photographs and grade a completed printed test.
+
+1. Go to **Create → Photos of notes** and select up to eight clearly photographed class-note or worksheet pages. Click **Read photos**, then review and correct the transcribed text. Select **Save photo notes & use for test**. The generated test uses the saved text, not the original images.
+2. Choose the test's number of questions, subject, and format and generate it normally.
+3. On the new attempt, choose **Print / paper test** → **Print / Save PDF**. This uses your browser's native print dialog. Handwritten question space and multiple-choice options appear, without an answer key.
+4. After working on paper, return to the **paper test** view. Either select up to five clear photos of completed pages at once, or directly select A/B/C/D answers and upload an individual written answer photo. Multiple batches can be scanned; legible math working is included. The AI attempts to match marked answers to numbered questions, without solving them.
+5. Correct any extracted letters, expressions, or written steps in the review form. **Confirm that you reviewed scanned answers** before selecting **Grade paper test**. Existing grading, feedback, history, and predictions are reused.
+
+Image reading uses the configured Anthropic API and consumes AI credits. Completed-paper page scanning and individual written-answer photo transcription require Study or Plus access. Original photos are not retained as study material or answer attachments; only reviewed text is saved when the user explicitly saves material or answers. A failed or unclear scan can be replaced with manual entry. Cropped, well-lit photos are best. The app cannot guarantee accurate handwriting recognition or grade prediction, so students should inspect their results.
+
 ## Practice and prediction workflow
 
 - Create a school exam with a subject, name, and optional date. Paste notes, interpret PDF/DOCX/TXT into an editable study guide, or reuse saved material. Legacy DOC files must first be converted; scanned PDFs need OCR. Pasted notes and saved guides support up to 500,000 characters.

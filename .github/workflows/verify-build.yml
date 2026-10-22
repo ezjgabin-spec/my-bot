@@ -18,6 +18,8 @@ jobs:
         run: npm run typecheck
       - name: Document interpreter and D1 isolation tests
         run: npx vitest run tests/material-interpreter.test.ts tests/cloud-store.test.ts tests/study-links.test.ts tests/pptx-import.test.ts tests/appearance.test.ts tests/writing-teacher-grade.test.ts
+      - name: Paper test answer matching tests
+        run: npx vitest run tests/paper-submission.test.ts
       - name: Cloudflare bundle diagnostics
         run: npm run cloud:build
 

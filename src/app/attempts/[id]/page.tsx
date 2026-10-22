@@ -11,6 +11,7 @@ import {
   Sparkles,
   Target,
   LoaderCircle,
+  Printer,
 } from "lucide-react";
 import { MathWorkspace } from "@/components/math-workspace";
 import { api, percent } from "@/lib/client";
@@ -208,6 +209,7 @@ export default function AttemptPage({
           <ArrowLeft size={16} />
           Your tests
         </Link>
+        <Link href={"/attempts/" + id + "/paper"} className="button secondary small"><Printer size={16} /> Print / paper test</Link>
         <span className="save-status" role="status">
           <Check size={15} />
           {saveStatus}
