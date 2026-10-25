@@ -33,6 +33,8 @@ export type WritingRevision = {
   id:string;createdAt:string;action:z.infer<typeof writingAction>;
   targetGrade?:string;autoHumanize:boolean;tone:string;
   result:string; feedback?: GradeFeedback;
+  sourceSnapshot?: string; rubricSnapshot?: string;
+  gradingRuns?: GradeFeedback[]; gradingSpread?: number; rubricKind?: "teacher"|"generic";
 };
 export type WritingDocument = {
   id:string;title:string;sourceText:string;assignment:string;rubric:string;

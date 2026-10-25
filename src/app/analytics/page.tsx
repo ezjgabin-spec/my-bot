@@ -1,4 +1,5 @@
 "use client";
+import {ReadinessMeter} from "@/components/readiness-meter";
 import Link from "next/link";
 import { useState } from "react";
 import { Target, ArrowUpRight, Sparkles } from "lucide-react";
@@ -63,9 +64,10 @@ export default function Analytics() {
     .filter((t) => t.earned / t.possible < 0.7)
     .sort((a, b) => a.earned / a.possible - b.earned / b.possible)
     .slice(0, 8);
-  if (appearance.dashboard === "advanced") return <AdvancedAnalytics />;
+  if (appearance.dashboard === "advanced") return <><AdvancedAnalytics /><ReadinessMeter/></>;
   return (
     <>
+      <ReadinessMeter/>
       <PageHeader
         eyebrow="PREDICTIONS, MEET REALITY"
         title="Better data. Clearer expectations."

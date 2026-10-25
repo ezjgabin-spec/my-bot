@@ -254,11 +254,12 @@ export async function generateTest(
       "The AI returned duplicate questions. Please retry.",
       502,
     );
-  return randomizeChoices(result.questions).map((q, position) => ({
+  const prepared = randomizeChoices(result.questions).map((q, position) => ({
     ...q,
     ...(settings.advanced?.reading === "shared_passage" ? { passage: result.passage } : {}),
     position,
   }));
+  return (await import("./key-audit")).auditKeys(prepared, selection.text, subject);
 }
 export async function gradeWritten(
   questions: Question[],

@@ -29,6 +29,7 @@ export type Question = {
   topic: string;
   options: string[] | null;
   max_points: number;
+  keyAudit?: import("./key-check").KeyAudit;
   answer_key: string;
   explanation: string;
   rubric: string;
