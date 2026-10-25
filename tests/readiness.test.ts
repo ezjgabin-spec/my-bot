@@ -90,3 +90,40 @@ it("computes numeric keys without executing model-generated code", () => {
   expect(computeKey({ operation: "sample_sd", values: [1, 2, 3] })).toBe(1);
   expect(() => computeKey({ operation: "ratio", values: [1, 0] })).toThrow();
 });
+it("rejects a late Claude comparison when an older outcome exists outside the readiness form", async () => {
+  await POST(req(input));
+  await updateLocalData((d) => {
+    d.grades.push({
+      exam_id: eid,
+      grade: 89,
+      recorded_at: new Date().toISOString(),
+    });
+  });
+  expect((await PUT(req({ id: input.id }))).status).toBe(409);
+});
+it("freezes the original practice stages when the real outcome is recorded", async () => {
+  await updateLocalData((d) => {
+    d.tests.push({
+      id: "stage-test",
+      exam_id: eid,
+      difficulty: "Medium",
+      format: "multiple_choice",
+    } as never);
+    d.attempts.push({
+      id: "stage-attempt",
+      exam_id: eid,
+      test_id: "stage-test",
+      status: "completed",
+      score: 65,
+      completed_at: "2026-01-01",
+    } as never);
+  });
+  await POST(req(input));
+  await PATCH(req({ id: input.id, grade: 89 }));
+  await updateLocalData((d) => {
+    d.attempts[0].score = 100;
+  });
+  const r = (await readLocalData()).readinessRecords[0];
+  expect(r.actual?.practiceStages?.[0].score).toBe(65);
+  expect(r.actual?.grade).toBe(89);
+});

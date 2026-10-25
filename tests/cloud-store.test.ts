@@ -35,6 +35,8 @@ import {
   POST as rateFlashcard,
 } from "../src/app/api/flashcards/[id]/route";
 import { POST as generateFlashcardPreview } from "../src/app/api/flashcards/generate/route";
+import { POST as tagAssessment, GET as assessmentContexts } from "../src/app/api/readiness/context/route";
+import { GET as compareStages } from "../src/app/api/readiness/stage/route";
 
 const context = new AsyncLocalStorage<string>();
 let platform: Awaited<ReturnType<typeof getPlatformProxy<CloudBindings>>>;
@@ -56,6 +58,16 @@ const origin = {
   Origin: "https://study.example.com",
   "Content-Type": "application/json",
 };
+
+it("keeps readiness contexts and stage history private in D1", async () => {
+  const exam = await as("owner", () => store.createLocalExam({subject:"Stats",name:"Private exam"}));
+  const request = () => new Request("https://study.example.com/api/readiness/context",{method:"POST",headers:origin,body:JSON.stringify({kind:"test",sourceId:exam.id,className:"AP Stats",teacher:"Private Teacher"})});
+  expect((await as("brother",()=>tagAssessment(request()))).status).toBe(404);
+  expect((await as("owner",()=>tagAssessment(request()))).status).toBe(200);
+  expect((await (await as("owner",()=>assessmentContexts())).json()).sources[0].teacher).toBe("Private Teacher");
+  expect((await (await as("brother",()=>assessmentContexts())).json()).sources).toHaveLength(0);
+  expect((await as("brother",()=>compareStages(new Request(`https://study.example.com/api/readiness/stage?examId=${exam.id}`)))).status).toBe(404);
+});
 
 it("keeps free imported decks, ratings and undo private to their D1 account", async () => {
   const id = crypto.randomUUID();

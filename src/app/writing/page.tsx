@@ -6,6 +6,7 @@ import {api} from "@/lib/client";
 import {useWorkspace} from "@/components/workspace";
 import type {WritingDocument,WritingInput,WritingRevision} from "@/lib/writing-types";
 import {WritingPredictionReport} from "@/components/writing-prediction-report";
+import {EssayComparison} from "@/components/essay-comparison";
 import {PerformanceChart} from "@/components/charts";
 import {targetGrades} from "@/lib/writing-types";
 import "./writing.css";
@@ -43,6 +44,7 @@ export default function WritingPage(){
  const [notice,setNotice]=useState("");
  const requestId=useRef<string|null>(null);
  const upload=useRef<HTMLInputElement|null>(null);
+ const rubricUpload=useRef<HTMLInputElement|null>(null);
  async function load(){
   try {
    const r=await api<{essays:WritingDocument[]}>("/api/writing");
@@ -50,7 +52,7 @@ export default function WritingPage(){
    const id=new URLSearchParams(window.location.search).get("essay");
    const doc=r.essays.find(d=>d.id===id);
    if(doc){
-    setCurrent(doc.id);setTitle(doc.title);setText(doc.sourceText);
+    setCurrent(doc.id);setTitle(doc.title);setText(doc.revisions.filter(r=>r.action==="grade").at(-1)?.sourceSnapshot??doc.sourceText);
     setAssignment(doc.assignment);setRubric(doc.rubric);setTeacherFeedback(doc.teacherFeedback);
     setMaterialId(undefined);setGrade(doc.actualTeacherGrade?.toString()??"");setTeacherLetter(doc.actualTeacherLetter??"");setActualNotes(doc.actualTeacherNotes??"");
     setResult(doc.revisions.slice().reverse().find(rev=>rev.action==="grade"&&rev.feedback)??doc.revisions.at(-1)??null);
@@ -62,11 +64,11 @@ export default function WritingPage(){
  function chooseDoc(id:string){
   const d=docs.find(d=>d.id===id);
   setCurrent(id);setResult(d?.revisions.at(-1)??null);
-  if(d){setTitle(d.title);setText(d.sourceText);setAssignment(d.assignment);setRubric(d.rubric);setTeacherFeedback(d.teacherFeedback);setMaterialId(undefined);setGrade(d.actualTeacherGrade?.toString()??"");setTeacherLetter(d.actualTeacherLetter??"");setActualNotes(d.actualTeacherNotes??"");}
+  if(d){setTitle(d.title);setText(d.revisions.filter(r=>r.action==="grade").at(-1)?.sourceSnapshot??d.sourceText);setAssignment(d.assignment);setRubric(d.rubric);setTeacherFeedback(d.teacherFeedback);setMaterialId(undefined);setGrade(d.actualTeacherGrade?.toString()??"");setTeacherLetter(d.actualTeacherLetter??"");setActualNotes(d.actualTeacherNotes??"");}
   else{setTitle("My essay");setText("");setAssignment("");setRubric("");setTeacherFeedback("");setMaterialId(undefined);setResult(null);setGrade("");setTeacherLetter("");setActualNotes("");}
   resetQuote();
  }
- const payload=():WritingInput=>({requestId:requestId.current??crypto.randomUUID(),...(current?{essayId:current}:{}),...(materialId?{materialId}:{}),title,text:current?"":text,assignment,rubric,teacherFeedback,action,tone,targetGrade,autoHumanize});
+ const payload=():WritingInput=>({requestId:requestId.current??crypto.randomUUID(),...(current?{essayId:current}:{}),...(!current&&materialId?{materialId}:{}),title,text:current&&action!=="grade"?"":text,assignment,rubric,teacherFeedback,action,tone,targetGrade,autoHumanize});
  async function preview(){
   if(busy)return;
   setBusy(true);setError("");setNotice("");
@@ -80,7 +82,7 @@ export default function WritingPage(){
   setBusy(true);setError("");setNotice("");requestId.current??=crypto.randomUUID();
   try{
    const r=await api<{essay:WritingDocument;revision:WritingRevision}>("/api/writing",{method:"POST",body:JSON.stringify(payload())});
-   setResult(r.revision);setCurrent(r.essay.id);setDocs(old=>[r.essay,...old.filter(d=>d.id!==r.essay.id)]);
+   setResult(r.revision);setCurrent(r.essay.id);setText(r.essay.revisions.filter(v=>v.action==="grade").at(-1)?.sourceSnapshot??r.essay.sourceText);setDocs(old=>[r.essay,...old.filter(d=>d.id!==r.essay.id)]);
    setNotice("Saved to your private Writing Lab history. Credits reflect actual Claude usage.");
    resetQuote();requestId.current=null;await refresh();
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
@@ -109,6 +111,13 @@ export default function WritingPage(){
    setNotice("Teacher grade saved. Your earlier forecast is unchanged; no AI credits were used.");
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  }
+ async function selectRubric(file:File){
+  setBusy(true);setError("");setNotice("");
+  try {
+   const r=await api<{rubric:string}>("/api/writing/rubric",{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Filename":encodeURIComponent(file.name)},body:file});
+   setRubric(r.rubric);resetQuote();setNotice("Rubric extracted. Review the criteria below before grading; no AI credits were used.");
+  } catch(e){setError((e as Error).message);}finally{setBusy(false);}
+ }
  const graded=result?.feedback;
  const pairedEssays=docs.flatMap(doc=>{
   if(typeof doc.actualTeacherGrade!=="number")return [];
@@ -134,8 +143,11 @@ export default function WritingPage(){
     <button type="button" className="button secondary" onClick={()=>upload.current?.click()} disabled={busy}><Upload size={16}/> Upload essay (PDF, DOCX, TXT)</button>
     {materialId&&<p className="helper">Uploaded essay selected. Your source will be read privately from saved materials.</p>}</>}
     {current&&<details className="writing-original"><summary>View original essay (preserved)</summary><p>{docs.find(d=>d.id===current)?.sourceText}</p></details>}
+    {current&&action==="grade"&&<label>Draft to grade<textarea rows={11} maxLength={45000} value={text} disabled={busy||!!docs.find(d=>d.id===current)?.actualTeacherRecordedAt} onChange={e=>{setText(e.target.value);resetQuote();}}/><span className="helper">Edit or paste your revised draft here. Every graded version is saved; unchanged text stays at the same draft stage.</span></label>}
+    {current&&<EssayComparison essayId={current} refreshKey={docs.find(d=>d.id===current)?.updatedAt}/>}
     <label>Assignment instructions (optional)<textarea rows={2} value={assignment} disabled={!!current} maxLength={8000} onChange={e=>{setAssignment(e.target.value);resetQuote();}}/></label>
     <label>Rubric (optional)<textarea rows={3} value={rubric} disabled={!!current} maxLength={12000} onChange={e=>{setRubric(e.target.value);resetQuote();}}/></label>
+    {!current&&<><input ref={rubricUpload} type="file" accept=".pdf,.docx,.txt" style={{display:"none"}} onChange={e=>{if(e.target.files?.[0])void selectRubric(e.target.files[0]);e.currentTarget.value="";}}/><button type="button" className="button secondary" disabled={busy} onClick={()=>rubricUpload.current?.click()}><Upload size={16}/> Upload teacher rubric</button></>}
     <label>Earlier teacher feedback (optional, not the grade we're testing)<textarea rows={2} value={teacherFeedback} disabled={!!current} maxLength={8000} onChange={e=>{setTeacherFeedback(e.target.value);resetQuote();}}/></label>
     <h2>Choose an action</h2>
     <div className="writing-modes">{modes.map(m=><button type="button" key={m.id} className={action===m.id?"writing-mode selected":"writing-mode"} aria-pressed={action===m.id} disabled={busy||(!plus&&m.id!=="grade")} onClick={()=>{setAction(m.id);setAutoHumanize(false);setResult(null);resetQuote();}}><strong>{m.label}</strong><small>{m.detail}</small></button>)}</div>

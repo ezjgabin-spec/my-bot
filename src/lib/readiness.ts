@@ -20,7 +20,12 @@ export type ReadinessRecord = {
     model: string;
     version: string;
   };
-  actual?: { grade: number; at: string };
+  actual?: {
+    grade: number;
+    at: string;
+    practiceStages?: import("./practice-benchmark").PracticeStage[];
+    essayStages?: import("./essay-benchmark").EssayStage[];
+  };
 };
 export function readinessMetrics(rows: ReadinessRecord[]) {
   const pairs = rows.filter((r) => r.actual && r.actual.at > r.at);

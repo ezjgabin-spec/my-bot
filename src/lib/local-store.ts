@@ -22,6 +22,7 @@ import type { WritingDocument } from "./writing-types";
 import type { FlashcardDraft } from "./flashcard-generation";
 import { flashcardReviewPriorities } from "./flashcard-import";
 import { isCloud } from "./cloud";
+import { linkReadinessOutcome } from "./readiness-outcome";
 import {
   combineDocumentSummaries,
   MAX_INTERPRETER_SECTIONS,
@@ -45,6 +46,7 @@ export type LocalData = State & {
   billingLedger: LedgerEntry[];
   billingUsage: UsageReceipt[];
   readinessRecords: import("./readiness").ReadinessRecord[];
+  assessmentContexts: import("./assessment-context").AssessmentContext[];
   version: 1;
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
@@ -63,6 +65,7 @@ export const emptyData = (): LocalData => ({
   billingLedger: [],
   billingUsage: [],
   readinessRecords: [],
+  assessmentContexts: [],
   version: 1,
   subjects: [],
   exams: [],
@@ -105,6 +108,7 @@ async function load(): Promise<LocalData> {
     const parsed = JSON.parse(await readFile(dataFile(), "utf8")) as LocalData;
     // Upgrade existing desktop files without rewriting or discarding study data.
     parsed.readinessRecords ??= [];
+    parsed.assessmentContexts ??= [];
     parsed.billingAccounts ??= [];
     parsed.billingLedger ??= [];
     parsed.billingUsage ??= [];
@@ -580,6 +584,7 @@ export async function recordLocalGrade(examId: string, grade: number, feedback?:
   return updateLocalData((data) => {
     if (!data.exams.some((exam) => exam.id === examId))
       throw new AppError("Exam not found.", 404);
+    linkReadinessOutcome(data, "test", examId, grade, data.grades.find(g => g.exam_id === examId)?.recorded_at ?? new Date().toISOString());
     if(feedback){
       const prior=data.realityChecks.find(r=>r.examId===examId);
       if(prior && prior.format!==feedback.format)throw new AppError("An assessment format cannot be changed after its outcome was recorded. Use a separate exam for another assessment.",409);

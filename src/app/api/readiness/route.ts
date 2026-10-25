@@ -1,3 +1,6 @@
+import { linkReadinessOutcome } from "@/lib/readiness-outcome";
+import { sourceOutcome } from "@/lib/assessment-context";
+import { normalizeTag } from "@/lib/essay-benchmark";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -28,7 +31,7 @@ export async function GET() {
           .filter((e) => !d.grades.some((g) => g.exam_id === e.id))
           .map((e) => ({ id: e.id, kind: "test", name: e.name })),
         ...d.writingDocuments
-          .filter((e) => e.actualTeacherGrade === undefined)
+          .filter((e) => !e.actualTeacherRecordedAt)
           .map((e) => ({ id: e.id, kind: "essay", name: e.title })),
       ],
     });
@@ -97,16 +100,17 @@ export async function POST(request: Request) {
       } else {
         const doc = d.writingDocuments.find((e) => e.id === input.sourceId);
         if (!doc) throw new AppError("Essay not found.", 404);
-        if (doc.actualTeacherGrade !== undefined)
+        if (doc.actualTeacherRecordedAt)
           throw new AppError("Actual grade already recorded.", 409);
         const revision = doc.revisions.filter((r) => r.feedback).at(-1);
         if (!revision?.feedback)
           throw new AppError("Grade the essay first.", 400);
         center = (revision.feedback.lower + revision.feedback.upper) / 2;
         info = {
-          essay: doc.sourceText,
+          essay: revision.sourceSnapshot ?? doc.sourceText,
           assignment: doc.assignment,
           rubric:
+            revision.rubricSnapshot ||
             doc.rubric ||
             "Generic writing rubric: thesis, evidence, reasoning, organization, clarity and grammar.",
         };
@@ -114,8 +118,8 @@ export async function POST(request: Request) {
       const at = new Date().toISOString();
       const history = d.readinessRecords.filter(
         (r) =>
-          r.className === input.className &&
-          r.teacher === input.teacher &&
+          normalizeTag(r.className) === normalizeTag(input.className) &&
+          normalizeTag(r.teacher) === normalizeTag(input.teacher) &&
           r.kind === input.kind &&
           r.actual &&
           r.actual.at < at,
@@ -162,7 +166,24 @@ export async function PATCH(request: Request) {
           409,
         );
       }
-      r.actual = { grade, at: new Date().toISOString() };
+      const existing = sourceOutcome(d, r.kind, r.sourceId);
+      if (existing && existing.grade !== grade)
+        throw new AppError(
+          "This assessment already has a different real grade.",
+          409,
+        );
+      const at = existing?.at ?? new Date().toISOString();
+      linkReadinessOutcome(d, r.kind, r.sourceId, grade, at);
+      if (r.kind === "test") {
+        if (!existing)
+          d.grades.push({ exam_id: r.sourceId, grade, recorded_at: at });
+      } else {
+        const doc = d.writingDocuments.find((e) => e.id === r.sourceId);
+        if (doc) {
+          doc.actualTeacherGrade = grade;
+          doc.actualTeacherRecordedAt ??= at;
+        }
+      }
     });
     return NextResponse.json({ saved: true });
   } catch (e) {
@@ -176,9 +197,16 @@ export async function PUT(request: Request) {
     const { id } = z
       .object({ id: z.string().uuid() })
       .parse(await readJson(request));
-    const r = (await readLocalData()).readinessRecords.find((r) => r.id === id);
+    const data = await readLocalData();
+    const r = data.readinessRecords.find((r) => r.id === id);
     if (!r) throw new AppError("Prediction not found.", 404);
-    if (r.actual)
+    if (
+      r.actual ||
+      sourceOutcome(data, r.kind, r.sourceId) ||
+      (r.kind === "essay" &&
+        data.writingDocuments.find((e) => e.id === r.sourceId)
+          ?.actualTeacherRecordedAt)
+    )
       throw new AppError(
         "Comparison must run before the real grade is entered.",
         409,
@@ -205,7 +233,13 @@ export async function PUT(request: Request) {
     );
     await updateLocalData((d) => {
       const current = d.readinessRecords.find((v) => v.id === id)!;
-      if (current.actual)
+      if (
+        current.actual ||
+        sourceOutcome(d, current.kind, current.sourceId) ||
+        (current.kind === "essay" &&
+          d.writingDocuments.find((e) => e.id === current.sourceId)
+            ?.actualTeacherRecordedAt)
+      )
         throw new AppError(
           "Outcome entered during comparison; result excluded.",
           409,

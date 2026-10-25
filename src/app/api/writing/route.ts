@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiError, AppError, protectMutation, readJson, requireUser } from "@/lib/server";
 import { readLocalData, updateLocalData } from "@/lib/local-store";
 import { requireFeature } from "@/lib/feature-access";
-import { writingInput, type WritingDocument } from "@/lib/writing-types";
+import { writingInput } from "@/lib/writing-types";
 import { runWriting } from "@/lib/writing-service";
 import { withAiLock } from "@/lib/ai";
 import { featureRequest } from "@/lib/feature-request";
@@ -28,7 +28,8 @@ export async function POST(request:Request){
     const sourceMaterial=input.materialId?prior.materials.find(m=>m.id===input.materialId):null;
     if(input.materialId&&!sourceMaterial)throw new AppError("Your uploaded essay was not found.",404);
     const latestRevision=original?.revisions.slice().reverse().find(r=>r.action!=="grade");
-    const sourceText=(input.action==="humanize"&&latestRevision?latestRevision.result:undefined)||original?.sourceText||input.text.trim()||sourceMaterial?.extracted_text||"";
+    if (original?.actualTeacherRecordedAt && input.action === "grade") throw new AppError("The real result is already recorded. Start a new essay to predict another assignment.",409);
+    const sourceText=input.text.trim()||(input.action==="humanize"&&latestRevision?latestRevision.result:undefined)||original?.sourceText||sourceMaterial?.extracted_text||"";
     if(sourceText.length<80||sourceText.length>45_000)throw new AppError("Essay must contain 80 to 45,000 characters. For large files, split the document.",400);
     const assignment=original?.assignment??input.assignment;
     const rubric=original?.rubric??input.rubric;
@@ -42,7 +43,9 @@ export async function POST(request:Request){
         essay={id:input.requestId,title:input.title,sourceText,assignment,rubric,teacherFeedback,materialId:input.materialId??null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),revisions:[]};
         data.writingDocuments.push(essay);
       }
-      if(!essay.revisions.some(r=>r.id===revision.id))essay.revisions.push(revision);
+      if(input.action === "grade" && essay.actualTeacherRecordedAt) throw new AppError("The real grade was recorded during grading. This run cannot be saved as a forecast.",409);
+      const savedRevision = {...revision, sourceSnapshot:sourceText, rubricSnapshot:rubric};
+      if(!essay.revisions.some(r=>r.id===revision.id))essay.revisions.push(savedRevision);
       essay.updatedAt=new Date().toISOString();
       return essay;
     });

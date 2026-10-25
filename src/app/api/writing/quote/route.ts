@@ -15,8 +15,9 @@ export async function POST(request:Request){
   const material=input.materialId?data.materials.find(m=>m.id===input.materialId):null;
   if(input.materialId&&!material)throw new AppError("Material not found.",404);
   const latestRevision=doc?.revisions.slice().reverse().find(r=>r.action!=="grade");
-  const length=(input.action==="humanize"&&latestRevision?latestRevision.result.length:0)||doc?.sourceText.length||input.text.length||material?.extracted_text.length||0;
+  if (doc?.actualTeacherRecordedAt && input.action === "grade") throw new AppError("Start a new essay to forecast another assignment; this one already has a real result.",409);
+  const length=input.text.trim().length||(input.action==="humanize"&&latestRevision?latestRevision.result.length:0)||doc?.sourceText.length||material?.extracted_text.length||0;
   if(length<80||length>45000)throw new AppError("Essay must contain 80 to 45,000 characters.",400);
-  return NextResponse.json({estimate:writingEstimate(input,length),disclaimer:"Estimate only. Actual billed credits depend on Claude token usage. Auto Humanize adds a separate metered request."});
+  return NextResponse.json({estimate:writingEstimate({...input,assignment:doc?.assignment??input.assignment,rubric:doc?.rubric??input.rubric,teacherFeedback:doc?.teacherFeedback??input.teacherFeedback},length),disclaimer:"Estimate only. Actual billed credits depend on Claude token usage. Auto Humanize adds a separate metered request."});
  }catch(e){return apiError(e);}
 }

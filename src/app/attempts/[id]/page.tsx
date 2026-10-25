@@ -14,6 +14,7 @@ import {
   Printer,
 } from "lucide-react";
 import { MathWorkspace } from "@/components/math-workspace";
+import {PracticeComparison} from "@/components/practice-comparison";
 import { api, percent } from "@/lib/client";
 import { useWorkspace } from "@/components/workspace";
 import { PageHeader, ErrorMessage, Badge } from "@/components/ui";
@@ -502,6 +503,7 @@ function Results({ view }: { view: AttemptView }) {
           )}
         </section>
       </div>
+      <PracticeComparison examId={view.exam.id}/>
       {weak.length > 0 && (
         <section className="panel weakness-callout">
           <div>
