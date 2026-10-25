@@ -1,3 +1,4 @@
+vi.mock("../src/lib/key-audit",()=>({auditKeys:async(q:unknown)=>q}));
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";

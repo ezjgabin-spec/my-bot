@@ -272,6 +272,7 @@ export default function AttemptPage({
           </div>
           <div className="question-topic">{question.topic}</div>
           {question.passage && <section className="panel form-panel"><h3>Shared reading passage</h3><p style={{whiteSpace:"pre-wrap"}}>{question.passage}</p></section>}
+          {question.keyAudit && <p className="notice">Answer-key audit: {question.keyAudit.status}. {question.keyAudit.status === "unverified" || question.keyAudit.status === "mismatch" ? "This question needs review; its score may be unreliable." : ""}</p>}
           <h2 className="question-prompt">{question.prompt}</h2>
           <fieldset disabled={frozen} className="answer-fieldset">
             <legend className="sr-only">

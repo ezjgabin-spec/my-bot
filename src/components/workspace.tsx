@@ -90,7 +90,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ) {
         setState(empty);
         setEmail(null);
-        if (window.location.pathname !== "/login") router.replace("/login");
+        if (!["/login","/accuracy"].includes(window.location.pathname)) router.replace("/login");
       }
       if (!response.ok)
         throw new Error(data.error || "Unable to load your workspace.");
@@ -192,6 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
   }, [pathname, animate, appearance.dashboard]);
   const cloud = process.env.NEXT_PUBLIC_STUDYPREDICT_CLOUD === "1";
+  if (pathname === "/accuracy") return <>{children}</>;
   if (pathname === "/login" && cloud)
     return <main className="login-wrap">{children}</main>;
   return (

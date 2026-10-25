@@ -44,6 +44,7 @@ export type LocalData = State & {
   billingAccounts: BillingAccount[];
   billingLedger: LedgerEntry[];
   billingUsage: UsageReceipt[];
+  readinessRecords: import("./readiness").ReadinessRecord[];
   version: 1;
   materials: StudyMaterial[];
   flashcardDecks: FlashcardDeck[];
@@ -61,6 +62,7 @@ export const emptyData = (): LocalData => ({
   billingAccounts: [],
   billingLedger: [],
   billingUsage: [],
+  readinessRecords: [],
   version: 1,
   subjects: [],
   exams: [],
@@ -102,6 +104,7 @@ async function load(): Promise<LocalData> {
   try {
     const parsed = JSON.parse(await readFile(dataFile(), "utf8")) as LocalData;
     // Upgrade existing desktop files without rewriting or discarding study data.
+    parsed.readinessRecords ??= [];
     parsed.billingAccounts ??= [];
     parsed.billingLedger ??= [];
     parsed.billingUsage ??= [];
@@ -609,11 +612,11 @@ export async function localAttemptView(id: string) {
   const questions =
     attempt.status === "completed"
       ? allQuestions
-      : allQuestions.map(({ answer_key, explanation, rubric, ...question }) => {
+      : allQuestions.map(({ answer_key, explanation, rubric, keyAudit, ...question }) => {
           void answer_key;
           void explanation;
           void rubric;
-          return question;
+          return {...question, ...(keyAudit ? {keyAudit:{status:keyAudit.status,reason:"Verification details appear after submission.",version:keyAudit.version}}:{})};
         });
   return {
     attempt: publicAttempt(attempt),
